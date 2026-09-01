@@ -1,0 +1,260 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="color-scheme" content="light">
+    <title>Atlas · 知识库工作台</title>
+    <link rel="stylesheet" href="/app.css?v=20260825-1">
+</head>
+<body>
+<div class="app-shell">
+    <aside class="library-rail">
+        <div class="brand">
+            <span class="brand-mark">A</span>
+            <div>
+                <strong>Atlas</strong>
+                <small>知识库工作台</small>
+            </div>
+        </div>
+
+        <button id="create-toggle" class="create-toggle" type="button" aria-expanded="false">
+            <span>＋</span> 新建知识库
+        </button>
+
+        <form id="create-form" class="create-form" hidden>
+            <label for="kb-name">知识库名称</label>
+            <input id="kb-name" name="name" required maxlength="128" placeholder="例如：Java 技术手册">
+            <label for="kb-description">描述</label>
+            <textarea id="kb-description" name="description" maxlength="500" placeholder="说明这组资料的用途"></textarea>
+            <div class="form-actions">
+                <button class="button button-primary" type="submit">创建</button>
+                <button id="create-cancel" class="button button-quiet" type="button">取消</button>
+            </div>
+        </form>
+
+        <div class="rail-heading">
+            <span>知识库</span>
+            <button id="refresh-libraries" class="icon-button" type="button" title="刷新知识库" aria-label="刷新知识库">↻</button>
+        </div>
+        <div id="library-list" class="library-list" aria-live="polite"></div>
+        <div class="rail-foot">接口状态 <span id="api-status" class="status-dot">连接中</span></div>
+    </aside>
+
+    <main class="workspace">
+        <header class="workspace-head">
+            <div>
+                <p class="eyebrow">ACTIVE LIBRARY</p>
+                <h1 id="active-name">选择一个知识库</h1>
+                <p id="active-description" class="workspace-description">从左侧选择知识库，开始整理与检索资料。</p>
+            </div>
+            <div id="active-badge" class="active-badge">未选择</div>
+        </header>
+
+        <nav class="view-tabs" aria-label="工作台功能">
+            <button class="view-tab active" type="button" data-view="documents">文档处理</button>
+            <button class="view-tab" type="button" data-view="retrieval">向量检索</button>
+            <button class="view-tab" type="button" data-view="keyword-search">关键词检索</button>
+            <button class="view-tab" type="button" data-view="chat">知识问答</button>
+        </nav>
+
+        <section id="view-documents" class="view active">
+            <div class="section-intro">
+                <div>
+                    <p class="section-kicker">INGESTION PIPELINE</p>
+                    <h2>把资料变成可检索知识</h2>
+                </div>
+                <p>支持 TXT、Markdown、PDF 与 DOCX。上传后依次切分文本、生成向量，文档才会进入检索范围。</p>
+            </div>
+
+            <div class="pipeline" aria-label="文档处理流程">
+                <div class="pipeline-step current" data-pipeline="upload"><span>1</span><div><strong>上传解析</strong><small>保存原文并提取文本</small></div></div>
+                <div class="pipeline-link"></div>
+                <div class="pipeline-step" data-pipeline="chunk"><span>2</span><div><strong>文本切分</strong><small>生成语义 Chunk</small></div></div>
+                <div class="pipeline-link"></div>
+                <div class="pipeline-step" data-pipeline="index"><span>3</span><div><strong>向量索引</strong><small>写入 PGVector</small></div></div>
+            </div>
+
+            <div class="document-grid">
+                <form id="upload-form" class="card upload-card">
+                    <div class="card-label">新增资料</div>
+                    <h3>上传文档</h3>
+                    <p>文件会上传到当前知识库，并同步完成文本解析。</p>
+                    <label class="file-drop" for="document-file">
+                        <span class="file-icon">↥</span>
+                        <strong id="file-name">选择 TXT、Markdown、PDF 或 Word 文件</strong>
+                        <small>支持 TXT、MD、PDF、DOCX，单个文件最大 10 MB</small>
+                    </label>
+                    <input id="document-file" name="file" type="file"
+                           accept=".txt,.md,.pdf,.docx,text/plain,text/markdown,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                           required hidden>
+                    <button class="button button-primary button-block" type="submit">上传并解析</button>
+                </form>
+
+                <section class="card process-card">
+                    <div class="card-label">处理资料</div>
+                    <h3>文档状态</h3>
+                    <p>选择文档后创建后台任务，系统会依次完成解析、切分和向量索引。</p>
+                    <label for="document-id">当前文档 ID</label>
+                    <input id="document-id" class="mono-input" type="text" placeholder="尚未选择" readonly>
+                    <div id="document-summary" class="document-summary empty">尚未选择文档</div>
+                    <div id="process-task-status" class="task-progress empty" aria-live="polite">尚未创建处理任务</div>
+                    <button id="process-document" class="button button-primary button-block" type="button">开始完整处理</button>
+                    <div class="document-actions">
+                        <button id="chunk-document" class="button button-secondary" type="button">切分文本</button>
+                        <button id="index-document" class="button button-primary" type="button">生成向量</button>
+                    </div>
+                    <p class="microcopy">处理进度来自服务端；任务运行时会自动刷新，手动操作仅用于调试。</p>
+                </section>
+
+                <section class="card document-list-card">
+                    <div class="document-list-head">
+                        <div>
+                            <div class="card-label">知识库文件</div>
+                            <h3>已上传文档</h3>
+                        </div>
+                        <div class="document-list-tools">
+                            <span id="document-count">0 个文档</span>
+                            <button id="refresh-documents" class="button button-secondary button-compact" type="button">刷新</button>
+                        </div>
+                    </div>
+                    <div id="document-list" class="document-list">
+                        <div class="document-list-empty">选择知识库后显示已上传文档。</div>
+                    </div>
+                </section>
+
+                <section class="card document-inspector-card">
+                    <div class="document-list-head inspector-head">
+                        <div>
+                            <div class="card-label">文件检查台</div>
+                            <h3 id="inspector-title">选择文档查看详情</h3>
+                        </div>
+                        <div class="document-list-tools">
+                            <span id="inspector-status">未选择文档</span>
+                            <button id="reprocess-document" class="button button-secondary button-compact" type="button">重新处理</button>
+                        </div>
+                    </div>
+
+                    <div class="inspector-grid">
+                        <section class="inspector-panel detail-panel">
+                            <div class="inspector-panel-head">
+                                <h4>文件详情</h4>
+                                <span>解析与索引信息</span>
+                            </div>
+                            <div id="document-detail" class="inspector-empty">选择文档后加载文件详情。</div>
+                        </section>
+
+                        <section class="inspector-panel chunks-panel">
+                            <div class="inspector-panel-head">
+                                <h4>文本片段</h4>
+                                <div class="pager-tools">
+                                    <button id="chunks-prev" class="pager-button" type="button" aria-label="上一页 Chunk">←</button>
+                                    <span id="chunks-page">—</span>
+                                    <button id="chunks-next" class="pager-button" type="button" aria-label="下一页 Chunk">→</button>
+                                </div>
+                            </div>
+                            <div id="chunk-list" class="inspector-empty">暂无可展示的 Chunk。</div>
+                        </section>
+
+                        <section class="inspector-panel history-panel">
+                            <div class="inspector-panel-head">
+                                <h4>处理历史</h4>
+                                <div class="pager-tools">
+                                    <button id="history-prev" class="pager-button" type="button" aria-label="上一页任务">←</button>
+                                    <span id="history-page">—</span>
+                                    <button id="history-next" class="pager-button" type="button" aria-label="下一页任务">→</button>
+                                </div>
+                            </div>
+                            <div id="task-history" class="inspector-empty">暂无处理任务历史。</div>
+                        </section>
+                    </div>
+                </section>
+            </div>
+        </section>
+
+        <section id="view-retrieval" class="view">
+            <div class="section-intro">
+                <div>
+                    <p class="section-kicker">VECTOR SEARCH</p>
+                    <h2>观察模型召回了什么</h2>
+                </div>
+                <p>纯检索不会调用聊天模型，适合验证 Chunk、相似度阈值和 TopK 是否合理。</p>
+            </div>
+            <form id="retrieval-form" class="query-composer">
+                <label for="retrieval-query">检索问题</label>
+                <textarea id="retrieval-query" name="query" required maxlength="1000" placeholder="输入要查找的概念、问题或关键词"></textarea>
+                <div class="query-options">
+                    <label>返回数量<input name="topK" type="number" min="1" max="20" value="5"></label>
+                    <label>相似度阈值<input name="similarityThreshold" type="number" min="0" max="1" step="0.05" value="0.5"></label>
+                    <button class="button button-primary" type="submit">开始检索</button>
+                </div>
+            </form>
+            <div id="retrieval-output" class="output-panel empty-output">
+                <div class="empty-symbol">⌁</div>
+                <h3>等待检索</h3>
+                <p>命中的文档片段、分数与来源会显示在这里。</p>
+            </div>
+        </section>
+
+        <section id="view-keyword-search" class="view">
+            <div class="section-intro">
+                <div>
+                    <p class="section-kicker">LEXICAL SEARCH</p>
+                    <h2>定位关键词出现在哪里</h2>
+                </div>
+                <p>直接匹配正文与章节标题，不生成向量。适合查找术语、类名、配置项和明确出现过的短语。</p>
+            </div>
+            <form id="keyword-search-form" class="query-composer keyword-composer">
+                <label for="keyword-search-query">搜索关键词</label>
+                <input id="keyword-search-query" class="keyword-query-input" name="query" type="search"
+                       required minlength="2" maxlength="500" autocomplete="off"
+                       placeholder="例如：spring.ai.vectorstore.pgvector">
+                <div class="query-options keyword-query-options">
+                    <label>返回数量<input name="topK" type="number" min="1" max="20" value="5"></label>
+                    <p class="keyword-search-hint">正文与章节标题中的匹配内容会在结果中标出。</p>
+                    <button class="button button-primary" type="submit">查找关键词</button>
+                </div>
+            </form>
+            <div id="keyword-search-output" class="output-panel empty-output">
+                <div class="empty-symbol keyword-symbol">“”</div>
+                <h3>等待关键词</h3>
+                <p>命中的文档片段、匹配分数和关键词位置会显示在这里。</p>
+            </div>
+        </section>
+
+        <section id="view-chat" class="view">
+            <div class="section-intro">
+                <div>
+                    <p class="section-kicker">HYBRID RAG · STREAMING</p>
+                    <h2>检索资料后实时生成回答</h2>
+                </div>
+                <p>系统先在当前知识库中进行向量与关键词混合检索，经 RRF 排序并扩展命中上下文；找到资料后，所选模型才会逐段生成回答。完成后可查看引用资料和 Token 用量。</p>
+            </div>
+            <form id="chat-form" class="query-composer chat-composer">
+                <label for="chat-question">你的问题</label>
+                <textarea id="chat-question" name="question" required maxlength="1000" placeholder="例如：文档中推荐的部署方式是什么？"></textarea>
+                <div class="query-options">
+                    <label for="chat-model">生成模型
+                        <select id="chat-model" name="modelCode" required disabled>
+                            <option value="">正在加载模型…</option>
+                        </select>
+                    </label>
+                    <label>最终候选数<input name="topK" type="number" min="1" max="20" value="5"></label>
+                    <label>向量相似度阈值<input name="similarityThreshold" type="number" min="0" max="1" step="0.05" value="0.5"></label>
+                    <button id="chat-submit" class="button button-primary" type="submit" disabled>检索并实时回答</button>
+                </div>
+                <small class="shortcut">⌘ / Ctrl + Enter 快速发送</small>
+            </form>
+            <div id="chat-output" class="output-panel empty-output" aria-busy="false">
+                <div class="empty-symbol">?</div>
+                <h3>等待提问</h3>
+                <p>发送后将先执行混合检索；找到资料会显示引用并实时生成回答，未找到资料时不会调用模型。</p>
+            </div>
+        </section>
+    </main>
+</div>
+
+<div id="toast" class="toast" role="status" aria-live="polite"></div>
+<script src="/app.js?v=20260831-1" defer></script>
+</body>
+</html>
