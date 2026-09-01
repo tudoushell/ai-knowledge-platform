@@ -1,14 +1,12 @@
-package com.elliot.ai.rag.service.impl;
+package com.elliot.ai.rag.retrieval.rerank;
 
 import com.elliot.ai.rag.config.RerankProperties;
 import com.elliot.ai.rag.retrieval.model.HybridCandidate;
 import com.elliot.ai.rag.retrieval.model.RerankCandidate;
 import com.elliot.ai.rag.retrieval.model.RetrievalQuery;
-import com.elliot.ai.rag.retrieval.rerank.RerankModelClient;
 import com.elliot.ai.rag.retrieval.rerank.exception.RerankException;
 import com.elliot.ai.rag.retrieval.rerank.model.RerankDocument;
 import com.elliot.ai.rag.retrieval.rerank.model.RerankModelResult;
-import com.elliot.ai.rag.service.RerankService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;

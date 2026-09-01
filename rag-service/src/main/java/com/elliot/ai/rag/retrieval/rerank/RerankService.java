@@ -1,4 +1,4 @@
-package com.elliot.ai.rag.service;
+package com.elliot.ai.rag.retrieval.rerank;
 
 import com.elliot.ai.rag.retrieval.model.HybridCandidate;
 import com.elliot.ai.rag.retrieval.model.RerankCandidate;

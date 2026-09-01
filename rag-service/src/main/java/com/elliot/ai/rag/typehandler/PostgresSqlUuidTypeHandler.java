@@ -1,4 +1,4 @@
-package com.elliot.ai.rag.typerhandler;
+package com.elliot.ai.rag.typehandler;
 
 import org.apache.ibatis.type.BaseTypeHandler;
 import org.apache.ibatis.type.JdbcType;

@@ -1,4 +1,4 @@
-package com.elliot.ai.rag.service;
+package com.elliot.ai.rag.retrieval.context;
 
 import com.elliot.ai.rag.dto.ExpandedSource;
 import com.elliot.ai.rag.retrieval.model.ContextCandidate;

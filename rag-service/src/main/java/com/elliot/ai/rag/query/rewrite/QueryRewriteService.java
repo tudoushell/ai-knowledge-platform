@@ -1,4 +1,4 @@
-package com.elliot.ai.rag.service;
+package com.elliot.ai.rag.query.rewrite;
 
 import com.elliot.ai.rag.query.model.QueryRewriteResult;
 

@@ -1,4 +1,4 @@
-package com.elliot.ai.rag.service;
+package com.elliot.ai.rag.retrieval.vector;
 
 import com.elliot.ai.rag.retrieval.model.RetrievalCandidate;
 import com.elliot.ai.rag.dto.RetrievalSearchDto;

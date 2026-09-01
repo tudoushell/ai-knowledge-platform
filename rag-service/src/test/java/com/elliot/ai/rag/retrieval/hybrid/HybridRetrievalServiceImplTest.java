@@ -1,9 +1,8 @@
-package com.elliot.ai.rag.service.impl;
+package com.elliot.ai.rag.retrieval.hybrid;
 
 import com.elliot.ai.rag.AiRagServiceApplication;
 import com.elliot.ai.rag.retrieval.model.HybridCandidate;
 import com.elliot.ai.rag.retrieval.model.RetrievalQuery;
-import com.elliot.ai.rag.service.HybridRetrievalService;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;

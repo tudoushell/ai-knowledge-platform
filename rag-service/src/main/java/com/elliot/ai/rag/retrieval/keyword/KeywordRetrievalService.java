@@ -1,4 +1,4 @@
-package com.elliot.ai.rag.service;
+package com.elliot.ai.rag.retrieval.keyword;
 
 import com.elliot.ai.rag.dto.KeywordSearchDto;
 import com.elliot.ai.rag.dto.KeywordSearchRequestDto;

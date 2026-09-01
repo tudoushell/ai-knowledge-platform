@@ -1,11 +1,11 @@
-package com.elliot.ai.rag.service.impl;
+package com.elliot.ai.rag.retrieval.hybrid;
 
 import com.elliot.ai.rag.config.RagProperties;
 import com.elliot.ai.rag.retrieval.model.HybridCandidate;
 import com.elliot.ai.rag.retrieval.model.RetrievalCandidate;
 import com.elliot.ai.rag.retrieval.model.RetrievalQuery;
-import com.elliot.ai.rag.service.KeywordRetrievalService;
-import com.elliot.ai.rag.service.VectorRetrievalService;
+import com.elliot.ai.rag.retrieval.keyword.KeywordRetrievalService;
+import com.elliot.ai.rag.retrieval.vector.VectorRetrievalService;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;

@@ -1,4 +1,4 @@
-package com.elliot.ai.rag.service;
+package com.elliot.ai.rag.retrieval.hybrid;
 
 import com.elliot.ai.rag.dto.HybridSearchDto;
 import com.elliot.ai.rag.dto.HybridSearchRequestDto;
@@ -64,17 +64,21 @@ public interface HybridRetrievalService {
      *                 rrfScore DESC
      *                          │
      *                          ▼
-     *                     Final Top5
+     *             RRF Candidate TopN
+     *          (rerank-candidate-top-k)
      *                          │
      *                          ▼
-     *                   hybridRank
-     *                     1..5
+     *                     rrfRank
+     *                     1..N
      *
      * <p>服务内部通常会使用独立的召回数量调用向量检索和关键词检索，
-     * 然后将两路命中的同一文本片段合并为一个候选对象。</p>
+     * 然后将两路命中的同一文本片段合并为一个候选对象。RRF 粗排后保留
+     * {@code rerank-candidate-top-k} 个候选，供后续 Rerank 使用；最终
+     * {@code topK} 的截断由 Rerank 阶段负责。</p>
      *
-     * @param query 包含知识库 ID、查询文本、最终返回数量和相似度阈值的统一查询对象
-     * @return 合并后的混合检索候选片段；候选中可能只包含向量检索或关键词检索的一路结果
+     * @param query 包含知识库 ID、查询文本、最终 {@code topK} 和相似度阈值的统一查询对象
+     * @return 经 RRF 粗排后的候选片段，数量不超过 {@code rerank-candidate-top-k}；
+     * 候选中可能只包含向量检索或关键词检索的一路结果
      */
     List<HybridCandidate> retrieve(RetrievalQuery query);
 }

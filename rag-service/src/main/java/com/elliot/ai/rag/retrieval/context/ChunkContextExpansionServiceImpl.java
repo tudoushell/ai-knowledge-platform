@@ -1,11 +1,10 @@
-package com.elliot.ai.rag.service.impl;
+package com.elliot.ai.rag.retrieval.context;
 
 import com.elliot.ai.rag.config.RagProperties;
 import com.elliot.ai.rag.dto.ExpandedSource;
 import com.elliot.ai.rag.dto.RagSourceChunkDto;
 import com.elliot.ai.rag.entity.DocumentChunk;
 import com.elliot.ai.rag.retrieval.model.ContextCandidate;
-import com.elliot.ai.rag.service.ChunkContextExpansionService;
 import com.elliot.ai.rag.service.DocumentChunkService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;

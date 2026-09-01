@@ -1,4 +1,4 @@
-package com.elliot.ai.rag.service.impl;
+package com.elliot.ai.rag.retrieval.vector;
 
 import com.elliot.ai.common.enums.ResultCode;
 import com.elliot.ai.common.exception.BusinessException;
@@ -11,7 +11,6 @@ import com.elliot.ai.rag.entity.KnowledgeBase;
 import com.elliot.ai.rag.enums.KnowledgeBaseStatus;
 import com.elliot.ai.rag.retrieval.model.RetrievalQuery;
 import com.elliot.ai.rag.service.KnowledgeBaseService;
-import com.elliot.ai.rag.service.VectorRetrievalService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.ai.document.Document;
 import org.springframework.ai.vectorstore.SearchRequest;
