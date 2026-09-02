@@ -10,6 +10,8 @@ import com.elliot.ai.rag.dto.RagSourceChunkDto;
 import com.elliot.ai.rag.dto.RagSourceDto;
 import com.elliot.ai.rag.dto.RagStreamEvent;
 import com.elliot.ai.rag.dto.TokenUsageDto;
+import com.elliot.ai.rag.query.model.QueryRewriteResult;
+import com.elliot.ai.rag.query.rewrite.QueryRewriteService;
 import com.elliot.ai.rag.retrieval.model.ContextCandidate;
 import com.elliot.ai.rag.retrieval.model.HybridCandidate;
 import com.elliot.ai.rag.retrieval.model.RerankCandidate;
@@ -48,6 +50,7 @@ public class RagServiceImpl implements RagService {
     private final ChunkContextExpansionService chunkContextExpansionService;
     private final HybridRetrievalService hybridRetrievalService;
     private final RerankService rerankService;
+    private final QueryRewriteService queryRewriteService;
 
     /**
      * 基于指定知识库执行检索增强生成，并以 SSE 事件流持续返回回答。
@@ -193,17 +196,20 @@ public class RagServiceImpl implements RagService {
     }
 
     private PreparedRagContext preparedRagContext(RagChatDto ragChatDto) {
-        String question = ragChatDto.question().trim();
+        String originalQuestion = ragChatDto.question().trim();
         int topK = ragChatDto.topK() == null ? ragProperties.getTopK() : ragChatDto.topK();
         double threshold = ragChatDto.similarityThreshold() == null ? ragProperties.getSimilarityThreshold() : ragChatDto.similarityThreshold();
-        //1. 构建Query
+        //1.Query Rewrite
+        QueryRewriteResult rewriteResult = queryRewriteService.rewrite(originalQuestion);
+        String retrievalQuestion = rewriteResult.retrievalQuery();
+        //2. 构建Query
         RetrievalQuery retrievalQuery = new RetrievalQuery(ragChatDto.knowledgeBaseId(),
-                question,
+                retrievalQuestion,
                 topK,
                 threshold);
 
         /**
-         * 2. Hybrid Retrieval
+         * 3. Hybrid Retrieval
          * 内部执行
          * Vector Recall
          * +
@@ -217,13 +223,13 @@ public class RagServiceImpl implements RagService {
         if (hybridCandidates.isEmpty()) {
             return new PreparedRagContext(
                     ragChatDto.knowledgeBaseId(),
-                    question,
+                    originalQuestion,
                     false,
                     null,
                     List.of());
         }
         /**
-         * 3. Rerank
+         * 4. Rerank
          * RRF Top10
          * ↓
          * Reranker
@@ -234,13 +240,13 @@ public class RagServiceImpl implements RagService {
         if (rerankCandidates.isEmpty()) {
             return noKnowledgeContext(
                     ragChatDto.knowledgeBaseId(),
-                    question);
+                    originalQuestion);
         }
         //使用 Rerank 后的最终排序构建Context
         ContextResult contextResult = buildContext(rerankCandidates);
         return new PreparedRagContext(
                 ragChatDto.knowledgeBaseId(),
-                ragChatDto.question(),
+                originalQuestion,
                 true,
                 contextResult.content,
                 contextResult.ragSources

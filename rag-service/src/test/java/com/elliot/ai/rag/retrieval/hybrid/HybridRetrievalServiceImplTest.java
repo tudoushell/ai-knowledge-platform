@@ -48,7 +48,7 @@ class HybridRetrievalServiceImplTest {
         assertThat(retrieve).allSatisfy(candidate -> {
             log.info(
                     "hybrid result rank={}, chunkId={}, rrfScore={}, vectorRank={}, vectorScore={}, keywordRank={}, keywordScore={}",
-                    candidate.getHybridRank(),
+                    candidate.getRrfRank(),
                     candidate.getChunkId(),
                     candidate.getRrfScore(),
                     candidate.getVectorRank(),

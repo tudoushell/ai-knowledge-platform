@@ -2,7 +2,7 @@ package com.elliot.ai.rag.retrieval.rerank.cohere;
 
 import com.elliot.ai.common.enums.ResultCode;
 import com.elliot.ai.common.exception.BusinessException;
-import com.elliot.ai.rag.config.RerankProperties;
+import com.elliot.ai.rag.retrieval.rerank.config.RerankProperties;
 import com.elliot.ai.rag.retrieval.rerank.RerankModelClient;
 import com.elliot.ai.rag.retrieval.rerank.cohere.model.CohereRerankRequest;
 import com.elliot.ai.rag.retrieval.rerank.cohere.model.CohereRerankResponse;

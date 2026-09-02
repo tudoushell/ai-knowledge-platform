@@ -125,9 +125,15 @@ app:
       #Rerank 模型名称
       model: ${RERANK_MODEL:rerank-v4.0-pro}
       #API Key
-      api-key: ${RERANK_API_KEY:}
+      api-key: ${cohere_api_key}
       connect-timeout: 1s
       read-timeout: 3s
+    query-rewrite:
+      #是否在知识库检索前使用 LLM 改写用户查询
+      enabled: ${QUERY_REWRITE_ENABLED:true}
+      #Query Rewrite 使用的改写模型
+      model-code: ${QUERY_REWRITE_MODEL:qwen3.8-flash}
+
 
   document:
     task:

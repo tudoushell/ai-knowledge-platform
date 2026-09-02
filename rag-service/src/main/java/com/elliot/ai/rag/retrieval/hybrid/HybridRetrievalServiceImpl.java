@@ -76,7 +76,7 @@ public class HybridRetrievalServiceImpl implements HybridRetrievalService {
 
     private HybridSearchHitDto toHybridSearchHit(HybridCandidate candidate) {
         return new HybridSearchHitDto(
-                candidate.getHybridRank(),
+                candidate.getRrfRank(),
                 candidate.getRrfScore(),
                 candidate.getChunkId(),
                 candidate.getDocumentId(),
@@ -111,12 +111,6 @@ public class HybridRetrievalServiceImpl implements HybridRetrievalService {
         candidateMap.values().forEach(each -> each.setRrfScore(calculateRrfScore(each)));
         //RRF 粗排
         return rankByRrf(candidateMap.values());
-    }
-
-    private void assignHybridRank(List<HybridCandidate> candidates) {
-        for (int index = 0; index < candidates.size(); index++) {
-            candidates.get(index).setHybridRank(index + 1);
-        }
     }
 
     /**

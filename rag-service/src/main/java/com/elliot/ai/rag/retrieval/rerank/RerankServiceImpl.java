@@ -1,6 +1,6 @@
 package com.elliot.ai.rag.retrieval.rerank;
 
-import com.elliot.ai.rag.config.RerankProperties;
+import com.elliot.ai.rag.retrieval.rerank.config.RerankProperties;
 import com.elliot.ai.rag.retrieval.model.HybridCandidate;
 import com.elliot.ai.rag.retrieval.model.RerankCandidate;
 import com.elliot.ai.rag.retrieval.model.RetrievalQuery;

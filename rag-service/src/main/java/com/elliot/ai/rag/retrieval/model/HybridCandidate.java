@@ -59,9 +59,4 @@ public class HybridCandidate {
      */
     private Integer rrfRank;
 
-    /**
-     * Hybrid 最终排名
-     */
-    private Integer hybridRank;
-
 }

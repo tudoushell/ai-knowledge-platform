@@ -7,7 +7,7 @@ public record HybridSearchHitDto(
         /**
          * Hybrid 最终排名。
          */
-        int rank,
+        Integer rank,
 
         /**
          * RRF 最终融合分数。

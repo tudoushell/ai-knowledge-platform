@@ -22,7 +22,7 @@ public class ChatConfig {
         return ChatClient.create(openAiChatModel);
     }
 
-    @Bean(name = "qwen3.7")
+    @Bean(name = "qwen3.8-flash")
     public ChatClient aiChatClient() {
         OpenAiChatModel openAiChatModel = OpenAiChatModel.builder().openAiApi(OpenAiApi.builder()
                         .baseUrl("https://llm-ljefv1argjxdoupn.cn-beijing.maas.aliyuncs.com")
@@ -30,7 +30,7 @@ public class ChatConfig {
                         .apiKey(System.getenv("alibaba_key"))
                         .build())
                 .defaultOptions(OpenAiChatOptions.builder()
-                        .model("qwen3.7-plus")
+                        .model("qwen3.8-flash")
                         .build()).build();
         return ChatClient.create(openAiChatModel);
     }

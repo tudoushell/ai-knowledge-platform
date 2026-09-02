@@ -1,4 +1,4 @@
-package com.elliot.ai.rag.config;
+package com.elliot.ai.rag.retrieval.rerank.config;
 
 import lombok.Getter;
 import lombok.Setter;

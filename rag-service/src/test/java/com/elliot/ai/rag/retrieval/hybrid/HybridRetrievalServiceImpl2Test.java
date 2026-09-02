@@ -122,7 +122,7 @@ public class HybridRetrievalServiceImpl2Test {
         List<HybridCandidate> retrieve = hybridRetrievalServiceImpl.retrieve(retrievalQuery);
         assertThat(retrieve).hasSize(2);
         assertThat(retrieve).allSatisfy(candidate -> {
-            log.info("hybridRank {} chunkId {} chunkIndex {}  rrfScore {}", candidate.getHybridRank(),
+            log.info("rrfRank {} chunkId {} chunkIndex {} rrfScore {}", candidate.getRrfRank(),
                     candidate.getChunkId(), candidate.getChunkIndex(), candidate.getRrfScore());
         });
 

@@ -5,4 +5,16 @@ public record QueryRewriteResult(
         String rewrittenQuery,
         boolean rewritten
 ) {
+
+    public String retrievalQuery() {
+        return rewritten ? rewrittenQuery : originalQuery;
+    }
+
+    public static QueryRewriteResult fallback(String originalQuery) {
+        return new QueryRewriteResult(
+                originalQuery,
+                originalQuery,
+                false
+        );
+    }
 }
