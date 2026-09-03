@@ -11,47 +11,42 @@ public interface RagService {
     /**
      * 检索知识库并通过 SSE 流式生成回答。
      * <>p</>
-     *                           User Question
-     *                               │
-     *                               ▼
-     *                        RetrievalQuery
-     *                               │
-     *                               ▼
-     *                  HybridRetrievalService
-     *                      /                \
-     *                     ▼                  ▼
-     *                Vector20           Keyword20
-     *                     \                 /
-     *                      \               /
-     *                       ▼             ▼
-     *                          RRF Top10
-     *                               │
-     *                               ▼
-     *                        RerankService
-     *                               │
-     *                               ▼
-     *                     RerankModelClient
-     *                               │
-     *                               ▼
-     *                          HTTP Model
-     *                               │
-     *                               ▼
-     *                          Final Top5
-     *                               │
-     *                               ▼
-     *                     RerankCandidate
-     *                               │
-     *                               ▼
-     *                     ContextCandidate
-     *                               │
-     *                               ▼
-     *                  ChunkContextExpansion
-     *                               │
-     *                               ▼
-     *                            Context
-     *                               │
-     *                               ▼
-     *                              LLM
+     *                   RagServiceImpl
+     *                        │
+     *                        ▼
+     *               RagRetrievalPipeline
+     *                        │
+     *               ┌────────┴────────┐
+     *               ▼                 │
+     *          Query Rewrite          │
+     *               ↓                 │
+     *         Query Expansion         │
+     *               ↓                 │
+     *       Multi Query Retrieval     │
+     *               ↓                 │
+     *             RRF #2              │
+     *               ↓                 │
+     *             Top N               │
+     *               ↓                 │
+     *             Rerank              │
+     *               └────────┬────────┘
+     *                        ▼
+     *                 RerankCandidate
+     *                        │
+     *                        ▼
+     *                  Context Build
+     *                        │
+     *                        ▼
+     *               Original Question
+     *                        +
+     *                     Context
+     *                        │
+     *                        ▼
+     *                       LLM
+     *
+     *
+     *
+     *
      *
      * @param ragChatDto 知识库 ID、问题和检索参数
      * @return 引用来源、回答增量、完成信息或错误信息组成的事件流

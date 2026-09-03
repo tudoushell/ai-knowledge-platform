@@ -10,17 +10,13 @@ import com.elliot.ai.rag.dto.RagSourceChunkDto;
 import com.elliot.ai.rag.dto.RagSourceDto;
 import com.elliot.ai.rag.dto.RagStreamEvent;
 import com.elliot.ai.rag.dto.TokenUsageDto;
-import com.elliot.ai.rag.query.model.QueryRewriteResult;
-import com.elliot.ai.rag.query.rewrite.QueryRewriteService;
-import com.elliot.ai.rag.retrieval.model.ContextCandidate;
-import com.elliot.ai.rag.retrieval.model.HybridCandidate;
-import com.elliot.ai.rag.retrieval.model.RerankCandidate;
-import com.elliot.ai.rag.retrieval.model.RetrievalQuery;
-import com.elliot.ai.rag.router.ChatClientRouter;
 import com.elliot.ai.rag.retrieval.context.ChunkContextExpansionService;
-import com.elliot.ai.rag.retrieval.hybrid.HybridRetrievalService;
+import com.elliot.ai.rag.retrieval.model.ContextCandidate;
+import com.elliot.ai.rag.retrieval.model.RerankCandidate;
+import com.elliot.ai.rag.retrieval.pipeline.RagRetrievalPipeline;
+import com.elliot.ai.rag.retrieval.pipeline.model.RagRetrievalPipelineResult;
+import com.elliot.ai.rag.router.ChatClientRouter;
 import com.elliot.ai.rag.service.RagService;
-import com.elliot.ai.rag.retrieval.rerank.RerankService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.metadata.Usage;
@@ -48,9 +44,7 @@ public class RagServiceImpl implements RagService {
     private final PromptTemplateConfig promptTemplateConfig;
     private final RagProperties ragProperties;
     private final ChunkContextExpansionService chunkContextExpansionService;
-    private final HybridRetrievalService hybridRetrievalService;
-    private final RerankService rerankService;
-    private final QueryRewriteService queryRewriteService;
+    private final RagRetrievalPipeline ragRetrievalPipeline;
 
     /**
      * 基于指定知识库执行检索增强生成，并以 SSE 事件流持续返回回答。
@@ -199,50 +193,18 @@ public class RagServiceImpl implements RagService {
         String originalQuestion = ragChatDto.question().trim();
         int topK = ragChatDto.topK() == null ? ragProperties.getTopK() : ragChatDto.topK();
         double threshold = ragChatDto.similarityThreshold() == null ? ragProperties.getSimilarityThreshold() : ragChatDto.similarityThreshold();
-        //1.Query Rewrite
-        QueryRewriteResult rewriteResult = queryRewriteService.rewrite(originalQuestion);
-        String retrievalQuestion = rewriteResult.retrievalQuery();
-        //2. 构建Query
-        RetrievalQuery retrievalQuery = new RetrievalQuery(ragChatDto.knowledgeBaseId(),
-                retrievalQuestion,
+        RagRetrievalPipelineResult retrieveResult = ragRetrievalPipeline.retrieve(
+                ragChatDto.knowledgeBaseId(),
+                originalQuestion,
                 topK,
                 threshold);
-
-        /**
-         * 3. Hybrid Retrieval
-         * 内部执行
-         * Vector Recall
-         * +
-         * Keyword Recall
-         * +
-         * RRF
-         * 返回 RRF TopN
-         *
-         */
-        List<HybridCandidate> hybridCandidates = hybridRetrievalService.retrieve(retrievalQuery);
-        if (hybridCandidates.isEmpty()) {
-            return new PreparedRagContext(
-                    ragChatDto.knowledgeBaseId(),
-                    originalQuestion,
-                    false,
-                    null,
-                    List.of());
-        }
-        /**
-         * 4. Rerank
-         * RRF Top10
-         * ↓
-         * Reranker
-         * ↓
-         * Final Top5
-         */
-        List<RerankCandidate> rerankCandidates = rerankService.rerank(retrievalQuery, hybridCandidates);
+        List<RerankCandidate> rerankCandidates = retrieveResult.candidates();
         if (rerankCandidates.isEmpty()) {
             return noKnowledgeContext(
                     ragChatDto.knowledgeBaseId(),
                     originalQuestion);
         }
-        //使用 Rerank 后的最终排序构建Context
+        //使用 Rerank 后的最终排序构建Context,chunk相邻信息
         ContextResult contextResult = buildContext(rerankCandidates);
         return new PreparedRagContext(
                 ragChatDto.knowledgeBaseId(),

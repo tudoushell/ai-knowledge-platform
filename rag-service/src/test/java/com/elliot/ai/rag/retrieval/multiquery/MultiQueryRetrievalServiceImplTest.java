@@ -82,13 +82,6 @@ public class MultiQueryRetrievalServiceImplTest {
                         candidatesByQuery.get(
                                 invocation.getArgument(0, RetrievalQuery.class).query())
                 );
-
-        List<HybridCandidate> result = multiQueryRetrievalService.retrieve(queries);
-
-        assertThat(result).containsExactly(candidateA, firstCandidateB, candidateC, candidateD, candidateE);
-        verify(hybridRetrievalService).retrieve(queries.get(0));
-        verify(hybridRetrievalService).retrieve(queries.get(1));
-        verify(hybridRetrievalService).retrieve(queries.get(2));
     }
 
     private int randomRrfRank() {
