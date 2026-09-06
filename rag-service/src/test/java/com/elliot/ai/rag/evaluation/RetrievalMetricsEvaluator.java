@@ -22,9 +22,14 @@ import java.util.UUID;
  * <p>
  * 则 Recall@5 = 1/2
  * <p>
- * MMR 是 Maximal Marginal Relevance（最大边际相关性）
- * 召回的chunk，相关chunk在召回chunk中的排名
- * 排名越高，RR 越大0～1
+ * RR@K（Reciprocal Rank）：第一个相关 Chunk 在 Top K 结果中的倒数排名。
+ * <p>
+ * 若第一个相关 Chunk 的排名为 r，则 RR@K = 1 / r；
+ * 若 Top K 中不存在相关 Chunk，则 RR@K = 0。
+ * <p>
+ * 例如：第一个相关 Chunk 排名第 2，则 RR@5 = 1 / 2 = 0.5。
+ * <p>
+ * MRR@K（Mean Reciprocal Rank）：多个 Query 的 RR@K 平均值。
  */
 public class RetrievalMetricsEvaluator {
 
@@ -41,7 +46,7 @@ public class RetrievalMetricsEvaluator {
         //recall@k
         long relevantRetrievalCount = topK.stream().filter(relevantChunkIds::contains).distinct().count();
         double recall = relevantChunkIds.isEmpty() ? 0 : (double) relevantRetrievalCount / relevantChunkIds.size();
-        //MMR
+        //RR
         double reciprocalRank = 0.0;
         for (int index = 0; index < topK.size(); index++) {
             UUID chunkId = topK.get(index);
