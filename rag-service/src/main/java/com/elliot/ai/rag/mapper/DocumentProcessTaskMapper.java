@@ -25,7 +25,7 @@ public interface DocumentProcessTaskMapper extends BaseMapper<DocumentProcessTas
     Long countRunningTasks(@Param("documentId") UUID documentId);
 
     @Update("""
-            update document_prcoess_task
+            update document_process_task
             set status = 'CANCELLED',
                 finished_at = #{now},
                 updated_at = #{now}
