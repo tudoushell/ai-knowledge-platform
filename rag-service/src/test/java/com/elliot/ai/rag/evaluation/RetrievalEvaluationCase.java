@@ -11,6 +11,7 @@ import java.util.UUID;
  */
 public record RetrievalEvaluationCase(
         String id,
+        RetrievalQueryCategory category,
         String query,
         Set<UUID> relevantChunkIds
 ) {

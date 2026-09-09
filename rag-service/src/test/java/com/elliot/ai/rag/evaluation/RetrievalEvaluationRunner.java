@@ -1,12 +1,12 @@
 package com.elliot.ai.rag.evaluation;
 
-import com.elliot.ai.rag.retrieval.model.RerankCandidate;
-import com.elliot.ai.rag.retrieval.pipeline.RagRetrievalPipeline;
-import com.elliot.ai.rag.retrieval.pipeline.model.RagRetrievalPipelineResult;
 import lombok.extern.slf4j.Slf4j;
 
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Slf4j
 public class RetrievalEvaluationRunner {
@@ -17,7 +17,7 @@ public class RetrievalEvaluationRunner {
         this.metricsEvaluator = metricsEvaluator;
     }
 
-    public RetrievalEvaluationSummary run(
+    public RetrievalEvaluationResult run(
             UUID knowledgeBaseId,
             List<RetrievalEvaluationCase> cases,
             int k,
@@ -28,8 +28,12 @@ public class RetrievalEvaluationRunner {
             throw new IllegalArgumentException("k should be greater than 0");
         }
         if (cases.isEmpty()) {
-            return new RetrievalEvaluationSummary(0,0.0,0.0, 0.0);
+            return new RetrievalEvaluationResult(
+                    new RetrievalEvaluationSummary(0, 0.0, 0.0, 0.0),
+                    List.of());
         }
+        List<RetrievalEvaluationCaseResult> caseResults = new ArrayList<>();
+
         double hitSum = 0.0;
         double recallSum = 0.0;
         double reciprocalRankSum = 0.0;
@@ -51,13 +55,21 @@ public class RetrievalEvaluationRunner {
             hitSum += metrics.hit();
             recallSum += metrics.recall();
             reciprocalRankSum += metrics.reciprocalRank();
+            caseResults.add(
+                    new RetrievalEvaluationCaseResult(evaluationCase.id(),
+                            evaluationCase.category(),
+                            evaluationCase.query(),
+                            List.copyOf(rankedChunkIds),
+                            metrics)
+            );
         }
         int caseCount = cases.size();
-        return new RetrievalEvaluationSummary(
+        RetrievalEvaluationSummary summary = new RetrievalEvaluationSummary(
                 caseCount,
-                hitSum/caseCount,
-                recallSum/caseCount,
+                hitSum / caseCount,
+                recallSum / caseCount,
                 reciprocalRankSum / caseCount
         );
+        return new RetrievalEvaluationResult(summary, caseResults);
     }
 }
