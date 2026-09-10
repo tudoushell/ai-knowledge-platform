@@ -1,5 +1,6 @@
 package com.elliot.ai.rag.query.expansion;
 
+import com.elliot.ai.rag.query.expansion.config.QueryExpansionProperties;
 import com.elliot.ai.rag.query.model.QueryExpansionResult;
 import com.elliot.ai.rag.router.ChatClientRouter;
 import lombok.RequiredArgsConstructor;
@@ -17,17 +18,23 @@ public class LlmQueryExpansionService implements QueryExpansionService {
 
     private final ChatClientRouter chatClientRouter;
 
+    private final QueryExpansionProperties properties;
+
     @Override
     public QueryExpansionResult expand(String query) {
+        if (!properties.isEnabled()) {
+            return QueryExpansionResult.noExpansion(query);
+        }
         try {
-            ChatClient chatClient = chatClientRouter.get("qwen3.8-flash");
+            int expansionCount = properties.getCount();
+            ChatClient chatClient = chatClientRouter.get(properties.getModelCode());
             ExpansionOutput output = chatClient.prompt()
                     .system("""
                                 你是一个知识库检索查询扩展器。
                             
                                    你的任务是围绕给定的基础检索查询，
-                                   生成 2 个额外的检索查询，用于提高知识库召回率。
-        
+                                   生成 %d 个额外的检索查询，用于提高知识库召回率。
+                            
                                    要求：
                                    1. 保持相同的核心检索意图
                                    2. 使用不同关键词、同义词、专业术语或表达方式
@@ -37,8 +44,8 @@ public class LlmQueryExpansionService implements QueryExpansionService {
                                    6. 不要回答问题
                                    7. 不要返回与基础查询完全相同的查询
                                    8. 保持原语言
-                                   9. 只生成 2 个扩展查询
-                            """)
+                                   9. 只生成 %d 个扩展查询
+                            """.formatted(expansionCount, expansionCount))
                     .user(query)
                     .call()
                     .entity(ExpansionOutput.class);
@@ -50,7 +57,7 @@ public class LlmQueryExpansionService implements QueryExpansionService {
                     .map(String::trim)
                     .filter(expandedQuery -> !query.equals(expandedQuery))
                     .distinct()
-                    .limit(2)
+                    .limit(expansionCount)
                     .toList();
             if (expandedQueries.isEmpty()) {
                 return QueryExpansionResult.noExpansion(query);

@@ -3,6 +3,7 @@ package com.elliot.ai.rag.retrieval.multiquery;
 import com.elliot.ai.rag.retrieval.hybrid.HybridRetrievalService;
 import com.elliot.ai.rag.retrieval.model.HybridCandidate;
 import com.elliot.ai.rag.retrieval.model.RetrievalQuery;
+import com.elliot.ai.rag.retrieval.multiquery.config.MultiQueryProperties;
 import com.elliot.ai.rag.retrieval.multiquery.model.MultiQueryCandidate;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
@@ -21,7 +22,7 @@ public class MultiQueryRetrievalServiceImpl implements MultiQueryRetrievalServic
 
     private final HybridRetrievalService hybridRetrievalService;
 
-    private static final int MULTI_QUERY_RRF_K = 60;
+    private MultiQueryProperties properties;
 
     @Override
     public List<MultiQueryCandidate> retrieve(List<RetrievalQuery> queries) {
@@ -31,7 +32,7 @@ public class MultiQueryRetrievalServiceImpl implements MultiQueryRetrievalServic
             for (HybridCandidate candidate : candidates) {
                 CandidateAccumulator accumulator =
                         accumulators.computeIfAbsent(candidate.getChunkId(), key -> new CandidateAccumulator());
-                accumulator.add(candidate, MULTI_QUERY_RRF_K);
+                accumulator.add(candidate, properties.getRrk());
             }
         }
         List<CandidateAccumulator> ranked = accumulators.values()

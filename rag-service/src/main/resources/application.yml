@@ -133,6 +133,16 @@ app:
       enabled: ${QUERY_REWRITE_ENABLED:true}
       #Query Rewrite 使用的改写模型
       model-code: ${QUERY_REWRITE_MODEL:qwen3.8-flash}
+    query-expansion:
+      # 是否在 Query Rewrite 后生成额外检索查询。
+      enabled: ${QUERY_EXPANSION_ENABLED:true}
+      # Query Expansion 使用的模型标识。
+      model-code: ${QUERY_EXPANSION_MODEL:qwen3.8-flash}
+      # 除原始查询外，额外生成的扩展查询数量。
+      count: ${QUERY_EXPANSION_COUNT:2}
+    multi-query:
+      # 多 Query 检索结果进行第二层 RRF 融合时使用的排名平滑常数。
+      rrk: ${MULTI_QUERY_RRK:60}
 
 
   document:
