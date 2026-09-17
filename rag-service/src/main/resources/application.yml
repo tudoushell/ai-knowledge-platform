@@ -143,6 +143,12 @@ app:
     multi-query:
       # 多 Query 检索结果进行第二层 RRF 融合时使用的排名平滑常数。
       rrk: ${MULTI_QUERY_RRK:60}
+    conversation:
+      query-rewrite:
+        # 是否根据历史对话将当前问题改写为可独立理解的检索问题。
+        enabled: ${CONVERSATION_QUERY_REWRITE_ENABLED:true}
+        # 会话查询改写使用的模型标识。
+        model-code: ${CONVERSATION_QUERY_REWRITE_MODEL:qwen3.8-flash}
 
 
   document:
