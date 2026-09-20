@@ -35,10 +35,12 @@ public class RagRetrievalEvaluationTest {
 
     @Test
     void shouldEvaluateRetrievalPipeline() {
+        UUID conversationId = UUID.randomUUID();
         UUID knowledgeBaseId = UUID.fromString("d83415c9-c26c-4762-bfe9-4767efc71b36");
         List<RetrievalEvaluationCase> cases = RetrievalEvaluationDataset.cases();
         RetrievalEvaluationRunner runner = new RetrievalEvaluationRunner(new RetrievalMetricsEvaluator());
         RetrievalEvaluationResult enhancedSummary = runner.run(
+                conversationId,
                 knowledgeBaseId,
                 cases,
                 5,
@@ -46,6 +48,7 @@ public class RagRetrievalEvaluationTest {
                 this::retrieveEnhanced
         );
         RetrievalEvaluationResult baselineSummary = runner.run(
+                conversationId,
                 knowledgeBaseId,
                 cases,
                 5,
@@ -257,6 +260,7 @@ public class RagRetrievalEvaluationTest {
 
 
     private List<UUID> retrieveEnhanced(
+            UUID conversationId,
             UUID knowledgeBaseId,
             String query,
             int topK,
@@ -264,6 +268,7 @@ public class RagRetrievalEvaluationTest {
     ) {
         RagRetrievalPipelineResult result =
                 retrievalPipeline.retrieve(
+                        conversationId,
                         knowledgeBaseId,
                         query,
                         topK,
@@ -277,6 +282,7 @@ public class RagRetrievalEvaluationTest {
     }
 
     private List<UUID> retrieveBaseline(
+            UUID conversationId,
             UUID knowledgeBaseId,
             String query,
             int topK,

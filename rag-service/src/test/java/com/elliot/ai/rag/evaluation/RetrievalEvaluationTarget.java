@@ -7,6 +7,7 @@ import java.util.UUID;
 public interface RetrievalEvaluationTarget {
 
     List<UUID> retrieve(
+            UUID conversationId,
             UUID knowledgeBaseId,
             String query,
             int topK,

@@ -30,7 +30,7 @@ public class RagRetrievalPipelineImpl implements RagRetrievalPipeline {
     private final RagProperties ragProperties;
 
     @Override
-    public RagRetrievalPipelineResult retrieve(UUID knowledgeBaseId, String originalQuery, int topK, double similarityThreshold) {
+    public RagRetrievalPipelineResult retrieve(UUID conversationId, UUID knowledgeBaseId, String originalQuery, int topK, double similarityThreshold) {
         //1.Query Rewrite
         QueryRewriteResult rewriteResult = queryRewriteService.rewrite(originalQuery);
         //2. 构建基本检索

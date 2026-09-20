@@ -57,6 +57,7 @@ class RagRetrievalPipelineIntegrationTest {
     @Test
     void shouldExecuteRetrievalPipelineAndReturnTrace() {
         UUID knowledgeBaseId = UUID.randomUUID();
+        UUID conversationId = UUID.randomUUID();
         String originalQuery = "Spring Boot 如何配置 PostgreSQL 数据库连接";
         String rewrittenQuery = "Spring Boot 配置 PostgreSQL 数据源";
         double similarityThreshold = 0.6;
@@ -114,6 +115,7 @@ class RagRetrievalPipelineIntegrationTest {
         });
 
         RagRetrievalPipelineResult result = ragRetrievalPipeline.retrieve(
+                conversationId,
                 knowledgeBaseId,
                 originalQuery,
                 2,

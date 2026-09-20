@@ -5,6 +5,7 @@ import java.util.UUID;
 
 public record RagChatResultDto(
     UUID knowledgeBaseId,
+    UUID conversationId,
     String question,
     String answer,
     boolean knowledgeFound,

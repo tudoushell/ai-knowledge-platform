@@ -12,6 +12,7 @@ import java.util.UUID;
 public record RagChatDto(
         @NotNull(message = "知识库 ID 不能为空")
         UUID knowledgeBaseId,
+        UUID conversationId,
         @NotBlank(message = "问题不能为空")
         String question,
         @Min(value = 1, message = "topK 不能小于1")

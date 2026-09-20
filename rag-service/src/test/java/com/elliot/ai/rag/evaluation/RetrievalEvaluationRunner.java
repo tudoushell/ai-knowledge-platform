@@ -18,6 +18,7 @@ public class RetrievalEvaluationRunner {
     }
 
     public RetrievalEvaluationResult run(
+            UUID conversationId,
             UUID knowledgeBaseId,
             List<RetrievalEvaluationCase> cases,
             int k,
@@ -39,6 +40,7 @@ public class RetrievalEvaluationRunner {
         double reciprocalRankSum = 0.0;
         for (RetrievalEvaluationCase evaluationCase : cases) {
             List<UUID> rankedChunkIds = target.retrieve(
+                    conversationId,
                     knowledgeBaseId,
                     evaluationCase.query(),
                     k,
