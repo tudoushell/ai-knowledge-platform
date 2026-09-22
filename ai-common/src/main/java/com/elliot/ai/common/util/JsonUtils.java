@@ -1,8 +1,9 @@
 package com.elliot.ai.common.util;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.core.JacksonException;
+import tools.jackson.core.type.TypeReference;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.json.JsonMapper;
 
 /**
  * JSON 序列化与反序列化工具。
@@ -12,7 +13,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 public final class JsonUtils {
 
     /** 用于 JSON 读写的线程安全对象。 */
-    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper().findAndRegisterModules();
+    private static final ObjectMapper OBJECT_MAPPER = JsonMapper.builder().findAndAddModules().build();
 
     private JsonUtils() {
     }
@@ -28,7 +29,7 @@ public final class JsonUtils {
         try {
             return OBJECT_MAPPER.writeValueAsString(value);
         }
-        catch (JsonProcessingException exception) {
+        catch (JacksonException exception) {
             throw new IllegalArgumentException("对象序列化为 JSON 失败", exception);
         }
     }
@@ -46,7 +47,7 @@ public final class JsonUtils {
         try {
             return OBJECT_MAPPER.readValue(json, valueType);
         }
-        catch (JsonProcessingException exception) {
+        catch (JacksonException exception) {
             throw new IllegalArgumentException("JSON 反序列化失败", exception);
         }
     }
@@ -64,7 +65,7 @@ public final class JsonUtils {
         try {
             return OBJECT_MAPPER.readValue(json, typeReference);
         }
-        catch (JsonProcessingException exception) {
+        catch (JacksonException exception) {
             throw new IllegalArgumentException("JSON 反序列化失败", exception);
         }
     }

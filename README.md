@@ -1,6 +1,6 @@
 # AI Knowledge Platform
 
-基于 Java 17、Spring Boot 3.5.15、Spring AI 1.1.8、PostgreSQL / PGVector 和 Redis 的 RAG 知识平台。
+基于 Java 17、Spring Boot 4.1.1、Spring AI 2.0.1、PostgreSQL / PGVector 和 Redis 的 RAG 知识平台。
 
 支持文档入库、多查询混合检索、带会话历史的问题改写，以及同步和 SSE 流式知识问答。
 
