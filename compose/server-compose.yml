@@ -1,0 +1,44 @@
+services:
+  pgvector:
+    image: pgvector/pgvector:0.8.2-pg18-trixie
+    container_name: pgvector-db
+    restart: always
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: ai_db
+
+  redis:
+    image: redis:7.4-alpine
+    container_name: redis
+    restart: always
+    ports:
+      - "6379:6379"
+    environment:
+      REDIS_USERNAME: ${REDIS_USERNAME:-admin}
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-admin123}
+    command:
+      - redis-server
+      - --appendonly
+      - "yes"
+      - --user
+      - default
+      - "off"
+      - --user
+      - ${REDIS_USERNAME:-admin}
+      - "on"
+      - ">${REDIS_PASSWORD:-admin123}"
+      - "~*"
+      - "+@all"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD-SHELL", 'REDISCLI_AUTH="$$REDIS_PASSWORD" redis-cli --user "$$REDIS_USERNAME" ping | grep -q PONG']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  redis-data:

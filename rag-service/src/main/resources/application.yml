@@ -27,6 +27,22 @@ spring:
     # 数据库登录密码；生产环境不要将真实密码提交到代码仓库。
     password: postgres
     driver-class-name: org.postgresql.Driver
+  data:
+    redis:
+      # Redis 连接地址；容器外本地启动应用时使用 localhost。
+      host: ${REDIS_HOST:localhost}
+      # Redis 服务端口。
+      port: ${REDIS_PORT:6379}
+      # Redis ACL 用户名；与 Docker Compose 中创建的用户保持一致。
+      username: ${REDIS_USERNAME:admin}
+      # Redis ACL 用户密码；生产环境必须通过环境变量注入强密码。
+      password: ${REDIS_PASSWORD:admin123}
+      # Redis 逻辑数据库编号。
+      database: ${REDIS_DATABASE:0}
+      # 建立 Redis 连接的最大等待时间。
+      connect-timeout: ${REDIS_CONNECT_TIMEOUT:3s}
+      # Redis 命令执行超时时间。
+      timeout: ${REDIS_TIMEOUT:3s}
   ai:
     chat:
       client:
@@ -144,6 +160,13 @@ app:
       # 多 Query 检索结果进行第二层 RRF 融合时使用的排名平滑常数。
       rrk: ${MULTI_QUERY_RRK:60}
     conversation:
+      memory:
+        # 会话查询改写时最多加载的历史消息数量。
+        max-message: ${CONVERSATION_MEMORY_MAX_MESSAGE:10}
+        # 会话查询改写时加载的历史消息最大字符数，避免上下文过长。
+        max-history-chars: ${CONVERSATION_MEMORY_MAX_HISTORY_CHARS:12000}
+        # 会话历史缓存的过期时间。
+        ttl: ${CONVERSATION_MEMORY_TTL:30m}
       query-rewrite:
         # 是否根据历史对话将当前问题改写为可独立理解的检索问题。
         enabled: ${CONVERSATION_QUERY_REWRITE_ENABLED:true}

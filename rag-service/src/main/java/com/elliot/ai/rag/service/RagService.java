@@ -73,7 +73,7 @@ public interface RagService {
      *                         LLM Streaming
      *                               │
      *                               ▼
-     *        conversation → sources → delta... → done
+     *        conversation → trace -> sources → delta... → done
      * </pre>
      *
      * @param ragChatDto 知识库 ID、可选会话 ID、用户问题、检索参数及模型编码

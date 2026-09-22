@@ -1,5 +1,7 @@
 package com.elliot.ai.rag.dto;
 
+import com.elliot.ai.rag.trace.model.RagTrace;
+
 import java.util.List;
 import java.util.UUID;
 
@@ -10,6 +12,7 @@ public record RagChatResultDto(
     String answer,
     boolean knowledgeFound,
     List<RagSourceDto>  sources,
-    TokenUsageDto tokenUsage
+    TokenUsageDto tokenUsage,
+    RagTrace trace
 ) {
 }

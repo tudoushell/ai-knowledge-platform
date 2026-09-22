@@ -13,9 +13,9 @@ import com.elliot.ai.rag.dto.RagSourceDto;
 import com.elliot.ai.rag.dto.RagStreamEvent;
 import com.elliot.ai.rag.dto.TokenUsageDto;
 import com.elliot.ai.rag.entity.Conversation;
+import com.elliot.ai.rag.memory.ConversationHistoryResult;
 import com.elliot.ai.rag.query.conversation.ConversationQueryRewriteService;
 import com.elliot.ai.rag.query.conversation.model.ConversationContext;
-import com.elliot.ai.rag.query.conversation.model.ConversationMessage;
 import com.elliot.ai.rag.query.conversation.model.ConversationQueryRewriteResult;
 import com.elliot.ai.rag.retrieval.context.ChunkContextExpansionService;
 import com.elliot.ai.rag.retrieval.model.ContextCandidate;
@@ -26,6 +26,8 @@ import com.elliot.ai.rag.router.ChatClientRouter;
 import com.elliot.ai.rag.service.ConversationHistoryService;
 import com.elliot.ai.rag.service.ConversationService;
 import com.elliot.ai.rag.service.RagService;
+import com.elliot.ai.rag.trace.model.ConversationTrace;
+import com.elliot.ai.rag.trace.model.RagTrace;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
@@ -64,18 +66,27 @@ public class RagServiceImpl implements RagService {
     /**
      * 基于指定知识库执行检索增强生成，并以 SSE 事件流持续返回回答。
      *
-     * <p>执行顺序为：先进行阻塞式检索并准备 RAG 上下文，再按 {@code modelCode}
-     * 路由到对应的 {@link ChatClient}，最后将模型输出转换为 {conversation} {@code sources}、
-     * {@code delta}、{@code done} 等 SSE 事件。</p>
+     * <p>订阅后创建或校验会话，加载历史消息并改写当前问题，再执行检索和上下文
+     * 构建，同时收集会话及检索追踪信息。上述阻塞操作在
+     * {@code boundedElastic} 线程池执行；本次用户消息在历史读取之后保存，
+     * 保存成功后才开始发送事件。</p>
      *
-     * @param ragChatDto 知识库 ID、问题、检索参数和模型编码
-     * @return 面向前端的 RAG SSE 事件流
+     * <p>正常事件顺序为 {@code conversation -> trace -> sources -> delta... -> done}。
+     * 命中资料时，按 {@code modelCode} 选择 {@link ChatClient} 并流式生成回答，
+     * 在生成完成后尝试保存助手消息，再通过 {@code done} 返回可用的 Token 用量。
+     * 未命中资料时不调用模型，发送兜底提示并尝试保存助手消息后结束。</p>
+     *
+     * <p>准备上下文、用户消息保存或模型路由等异常由外层转换为
+     * {@code error -> done} 事件；模型流异常由内部事件流处理。</p>
+     *
+     * @param ragChatDto 知识库 ID、可选会话 ID、当前问题、检索参数及模型编码
+     * @return 包含会话 ID、追踪信息、引用来源、回答增量和结束标记的 SSE 事件流
      */
     @Override
     public Flux<ServerSentEvent<RagStreamEvent>> ragStreamChat(RagChatDto ragChatDto) {
         /*
-         * MyBatis 和向量检索是阻塞调用，不能占用响应式执行线程；
-         * 因此将“准备检索上下文”这一单值任务切换到 boundedElastic 线程池。
+         * 会话查询、历史缓存读取、问题改写和检索包含阻塞调用，
+         * 将整个上下文准备任务调度到 boundedElastic 线程池。
          */
         return Mono.fromCallable(() -> preparedRagContext(ragChatDto))
                 .subscribeOn(Schedulers.boundedElastic())
@@ -85,6 +96,7 @@ public class RagServiceImpl implements RagService {
                  */
                 .flatMapMany(prepared -> {
                     ConversationContext conversationContext = prepared.conversationContext();
+                    // 历史读取和检索已完成；保存本次原始问题后，再订阅回答事件流。
                     Mono<Void> saveUserMessage =
                             Mono.fromRunnable(() ->
                                             conversationHistoryService.saveUserMessage(conversationContext.conversationId(), conversationContext.originalQuery())
@@ -99,7 +111,7 @@ public class RagServiceImpl implements RagService {
                     );
 
                 })
-                // 检索、模型路由或流创建失败时，仍以 SSE 格式通知前端。
+                // 将准备上下文、保存用户消息等未被内部处理的异常转换为 error、done 事件。
                 .onErrorResume(exception -> errorEventStream("知识库检索失败"));
     }
 
@@ -120,7 +132,8 @@ public class RagServiceImpl implements RagService {
                     UNKNOW,
                     false,
                     preparedRagContext.sources(),
-                    null
+                    null,
+                    preparedRagContext.trace()
             );
         }
         conversationHistoryService.saveUserMessage(conversationContext.conversationId(), conversationContext.originalQuery());
@@ -137,11 +150,12 @@ public class RagServiceImpl implements RagService {
         return new RagChatResultDto(
                 ragChatDto.knowledgeBaseId(),
                 conversationContext.conversationId(),
-                conversationContext.standaloneQuery(),
+                conversationContext.originalQuery(),
                 answer,
                 true,
                 preparedRagContext.sources(),
-                extractUsage(chatResponse)
+                extractUsage(chatResponse),
+                preparedRagContext.trace()
         );
     }
 
@@ -163,6 +177,9 @@ public class RagServiceImpl implements RagService {
         ServerSentEvent<RagStreamEvent> conversationEvent = event("conversation",
                 RagStreamEvent.conversation(prepared.conversationContext().conversationId()));
 
+        ServerSentEvent<RagStreamEvent> traceEvent = event("trace",
+                RagStreamEvent.trace(prepared.trace()));
+
         // 无论是否命中资料，都先让前端拿到引用来源，便于尽早渲染引用区域。
         ServerSentEvent<RagStreamEvent> sourcesEvent = event("sources",
                 RagStreamEvent.sources(prepared.sources));
@@ -173,7 +190,10 @@ public class RagServiceImpl implements RagService {
                         , LLM_UNKNOW);
             }).subscribeOn(Schedulers.boundedElastic()).then();
             return Flux.concat(
-                    Flux.just(conversationEvent, sourcesEvent, event("delta", RagStreamEvent.delta(UNKNOW))),
+                    Flux.just(conversationEvent,
+                            traceEvent,
+                            sourcesEvent,
+                            event("delta", RagStreamEvent.delta(UNKNOW))),
                     saveAssistantMessage.thenMany(Flux.just(event("done", RagStreamEvent.done(null))))
             );
         }
@@ -224,7 +244,7 @@ public class RagServiceImpl implements RagService {
                         RagStreamEvent.done(tokenUsageRef.get())))));
 
         // concat 保证 sources、回答增量、done 三类事件不会乱序。
-        return Flux.concat(Flux.just(conversationEvent, sourcesEvent), answerFlux, doneFlux)
+        return Flux.concat(Flux.just(conversationEvent, traceEvent, sourcesEvent), answerFlux, doneFlux)
                 // 流式模型调用失败后，仍以 SSE 事件让前端结束加载状态。
                 .onErrorResume(exception -> errorEventStream(LLM_UNKNOW));
     }
@@ -258,11 +278,13 @@ public class RagServiceImpl implements RagService {
                 retrievalQuestion,
                 topK,
                 threshold);
+        RagTrace trace = new RagTrace(ConversationTrace.from(conversationContext), retrieveResult.trace());
         List<RerankCandidate> rerankCandidates = retrieveResult.candidates();
         if (rerankCandidates.isEmpty()) {
             return noKnowledgeContext(
                     ragChatDto.knowledgeBaseId(),
-                    conversationContext);
+                    conversationContext,
+                    trace);
         }
         //使用 Rerank 后的最终排序构建Context,chunk相邻信息
         ContextResult contextResult = buildContext(rerankCandidates);
@@ -271,17 +293,18 @@ public class RagServiceImpl implements RagService {
                 conversationContext,
                 true,
                 contextResult.content,
-                contextResult.ragSources
+                contextResult.ragSources,
+                trace
         );
     }
 
 
     private ConversationContext preparedConversationContext(UUID conversationId, String originalQuestion) {
-        List<ConversationMessage> history = conversationHistoryService.getHistory(conversationId);
-        ConversationQueryRewriteResult rewritten = conversationQueryRewriteService.rewrite(history, originalQuestion);
+        ConversationHistoryResult historyResult = conversationHistoryService.getHistory(conversationId);
+        ConversationQueryRewriteResult rewritten = conversationQueryRewriteService.rewrite(historyResult.messages(), originalQuestion);
         return new ConversationContext(
                 conversationId,
-                history,
+                historyResult,
                 rewritten.originQuery(),
                 rewritten.standaloneQuery(),
                 rewritten.rewritten(),
@@ -312,7 +335,8 @@ public class RagServiceImpl implements RagService {
 
     private PreparedRagContext noKnowledgeContext(
             UUID knowledgeBaseId,
-            ConversationContext conversationContext
+            ConversationContext conversationContext,
+            RagTrace trace
     ) {
 
         return new PreparedRagContext(
@@ -320,7 +344,8 @@ public class RagServiceImpl implements RagService {
                 conversationContext,
                 false,
                 null,
-                List.of()
+                List.of(),
+                trace
         );
     }
 
@@ -478,7 +503,8 @@ public class RagServiceImpl implements RagService {
             ConversationContext conversationContext,
             boolean knowledgeFound,
             String content,
-            List<RagSourceDto> sources
+            List<RagSourceDto> sources,
+            RagTrace trace
     ) {
 
     }

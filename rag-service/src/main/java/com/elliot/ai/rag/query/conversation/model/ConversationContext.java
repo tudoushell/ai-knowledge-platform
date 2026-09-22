@@ -1,11 +1,12 @@
 package com.elliot.ai.rag.query.conversation.model;
 
-import java.util.List;
+import com.elliot.ai.rag.memory.ConversationHistoryResult;
+
 import java.util.UUID;
 
 public record ConversationContext(
         UUID conversationId,
-        List<ConversationMessage> history,
+        ConversationHistoryResult historyResult,
         String originalQuery,
         String standaloneQuery,
         boolean rewritten,
