@@ -6,8 +6,10 @@ import com.elliot.ai.rag.query.conversation.model.ConversationMessage;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.stereotype.Component;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
@@ -18,6 +20,20 @@ import java.util.UUID;
 public class RedisConversationMemoryCache implements ConversationMemoryCache {
 
     private final static String KEY_PREFIX = "rag:conversation:history:";
+
+    private final static DefaultRedisScript<Long> PUT_SCRIPT = new DefaultRedisScript<>("""
+            local key = KEYS[1]
+            local maxMessage = tonumber(ARGV[1])
+            local ttlMillis = tonumber(ARGV[2])
+
+            redis.call('DEL', key)
+            for i = 3, #ARGV do
+                redis.call('RPUSH', key, ARGV[i])
+            end
+            redis.call('LTRIM', key, -maxMessage, -1)
+            redis.call('PEXPIRE', key, ttlMillis)
+            return 1
+            """, Long.class);
 
     private final StringRedisTemplate redisTemplate;
 
@@ -54,10 +70,11 @@ public class RedisConversationMemoryCache implements ConversationMemoryCache {
         }
         List<String> values = messages.stream().map(JsonUtils::toJson).toList();
         try {
-            redisTemplate.delete(key);
-            redisTemplate.opsForList().rightPushAll(key, values);
-            redisTemplate.opsForList().trim(key, -properties.getMaxMessage(), -1);
-            redisTemplate.expire(key, properties.getTtl());
+            List<String> args = new ArrayList<>(values.size() + 2);
+            args.add(String.valueOf(properties.getMaxMessage()));
+            args.add(String.valueOf(properties.getTtl().toMillis()));
+            args.addAll(values);
+            redisTemplate.execute(PUT_SCRIPT, List.of(key), args.toArray());
         } catch (Exception e) {
             log.warn(
                     "Write conversation memory to Redis failed, evict cached, conversationId={}",

@@ -1,0 +1,138 @@
+[
+  {
+    "caseId": "pronoun-001",
+    "category": "PRONOUN",
+    "history": [
+      {
+        "role": "USER",
+        "content": "Spring AI ChatClient 是什么？"
+      },
+      {
+        "role": "ASSISTANT",
+        "content": "ChatClient 是 Spring AI 提供的聊天模型调用 API。"
+      }
+    ],
+    "currentQuery": "它有什么优点？",
+    "rewriteRequired": true,
+    "expectedStandaloneQuery": "Spring AI ChatClient 有什么优点？"
+  },
+  {
+    "caseId": "pronoun-002",
+    "category": "PRONOUN",
+    "history": [
+      {
+        "role": "USER",
+        "content": "RRF 和 Rerank 有什么区别？"
+      },
+      {
+        "role": "ASSISTANT",
+        "content": "RRF 负责融合检索结果，Rerank 负责重新排序。"
+      }
+    ],
+    "currentQuery": "后者一般在什么时候执行？",
+    "rewriteRequired": true,
+    "expectedStandaloneQuery": "Rerank 一般在 RAG 检索流程的什么时候执行？"
+  },
+  {
+    "caseId": "ellipsis-001",
+    "category": "ELLIPSIS",
+    "history": [
+      {
+        "role": "USER",
+        "content": "Redis List 和 ZSet 有什么区别？"
+      },
+      {
+        "role": "ASSISTANT",
+        "content": "List 按列表顺序存储元素，ZSet 按 score 排序。"
+      }
+    ],
+    "currentQuery": "分别适合什么场景？",
+    "rewriteRequired": true,
+    "expectedStandaloneQuery": "Redis List 和 ZSet 分别适合什么场景？"
+  },
+  {
+    "caseId": "ellipsis-002",
+    "category": "ELLIPSIS",
+    "history": [
+      {
+        "role": "USER",
+        "content": "什么是 Hybrid Search？"
+      },
+      {
+        "role": "ASSISTANT",
+        "content": "Hybrid Search 结合了向量检索和关键词检索。"
+      }
+    ],
+    "currentQuery": "相比纯向量检索呢？",
+    "rewriteRequired": true,
+    "expectedStandaloneQuery": "Hybrid Search 与纯向量检索相比有什么区别？"
+  },
+  {
+    "caseId": "no-rewrite-001",
+    "category": "NO_REWRITE",
+    "history": [
+      {
+        "role": "USER",
+        "content": "Embedding 在 RAG 中有什么作用？"
+      },
+      {
+        "role": "ASSISTANT",
+        "content": "Embedding 用于将文本转换为向量。"
+      }
+    ],
+    "currentQuery": "pgvector 支持哪些向量距离计算方式？",
+    "rewriteRequired": false,
+    "expectedStandaloneQuery": "pgvector 支持哪些向量距离计算方式？"
+  },
+  {
+    "caseId": "no-rewrite-002",
+    "category": "NO_REWRITE",
+    "history": [
+      {
+        "role": "USER",
+        "content": "Redis 可以用作 RAG 会话缓存吗？"
+      },
+      {
+        "role": "ASSISTANT",
+        "content": "可以，Redis 能缓存最近的会话消息。"
+      }
+    ],
+    "currentQuery": "Redis 的 RDB 和 AOF 有什么区别？",
+    "rewriteRequired": false,
+    "expectedStandaloneQuery": "Redis 的 RDB 和 AOF 有什么区别？"
+  },
+  {
+    "caseId": "topic-switch-001",
+    "category": "TOPIC_SWITCH",
+    "history": [
+      {
+        "role": "USER",
+        "content": "Spring AI ChatClient 怎么调用模型？"
+      },
+      {
+        "role": "ASSISTANT",
+        "content": "可以使用 ChatClient 的 prompt、call 等 API。"
+      }
+    ],
+    "currentQuery": "Java 虚拟线程有什么特点？",
+    "rewriteRequired": false,
+    "expectedStandaloneQuery": "Java 虚拟线程有什么特点？"
+  },
+  {
+    "caseId": "topic-switch-002",
+    "category": "TOPIC_SWITCH",
+    "history": [
+      {
+        "role": "USER",
+        "content": "pgvector 怎么进行相似度检索？"
+      },
+      {
+        "role": "ASSISTANT",
+        "content": "pgvector 支持通过距离运算符计算向量相似度。"
+      }
+    ],
+    "currentQuery": "MyBatis-Plus 的分页插件如何配置？",
+    "rewriteRequired": false,
+    "expectedStandaloneQuery": "MyBatis-Plus 的分页插件如何配置？"
+  }
+]
