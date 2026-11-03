@@ -1,4 +1,4 @@
-package com.elliot.ai.rag.evaluation;
+package com.elliot.ai.rag.evaluation.conversation;
 
 import com.elliot.ai.rag.evaluation.conversation.model.ConversationRewriteCategory;
 import com.elliot.ai.rag.query.conversation.model.ConversationMessage;

@@ -23,6 +23,7 @@
 ai-knowledge-platform
 ├── ai-common                # 通用响应、异常处理、提示词和 JSON 工具
 ├── rag-service              # 可执行的 RAG 服务、REST/SSE 接口及数据库迁移
+├── frontend                 # 独立 Vue 3 + Vite 知识库工作台
 └── compose
     └── server-compose.yml   # PostgreSQL / PGVector 与 Redis
 ```
@@ -30,6 +31,7 @@ ai-knowledge-platform
 ## 环境要求
 
 - JDK 17+
+- Node.js `^20.19.0 || >=22.12.0` 与 npm（运行独立前端时）
 - Docker 与 Docker Compose（使用项目提供的数据库、缓存配置时）
 - PostgreSQL + `pgvector`；Compose 当前使用 PostgreSQL 18 / pgvector 0.8.2
 - Redis；Compose 当前使用 `redis:7.4-alpine`
@@ -95,6 +97,18 @@ java -jar rag-service/target/rag-service-0.0.1-SNAPSHOT.jar
 此构建命令跳过测试执行。仓库中的集成测试及检索评测可能依赖真实数据库、文档或模型服务，应在准备相应环境后单独运行。
 
 服务默认地址：`http://localhost:8090`。Swagger UI：`http://localhost:8090/swagger-ui.html`；OpenAPI JSON：`http://localhost:8090/v3/api-docs`。
+
+### 4. 启动 Vue 前端
+
+```bash
+cd frontend
+npm ci
+npm run dev
+```
+
+打开 `http://localhost:5173`。开发服务器将 `/api` 请求代理到 `http://localhost:8090`，支持文件上传和 SSE 流式回答。前端已从 Spring Boot 静态资源目录拆出，后端根路径不再提供工作台页面。
+
+前端构建、代理配置和生产部署说明见 [frontend/README.md](frontend/README.md)。
 
 ## 从上传文档到问答
 

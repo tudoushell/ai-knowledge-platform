@@ -498,6 +498,20 @@ public class RagServiceImpl implements RagService {
 
     }
 
+    /**
+     * RAG 回答生成前准备好的上下文，汇总会话问题、检索资料和追踪信息，
+     * 供同步问答与 SSE 流式问答共用。
+     *
+     * <p>由 {@link #preparedRagContext(RagChatDto)} 构建；此时已完成会话解析、
+     * 历史读取、问题改写、检索及资料上下文构建，尚未保存本轮用户消息或生成回答。</p>
+     *
+     * @param knowledgeBaseId 本次检索所属的知识库 ID
+     * @param conversationContext 会话上下文，包含会话 ID、历史读取结果、原始问题及改写后的独立问题
+     * @param knowledgeFound 是否检索到候选资料；为 false 时返回兜底提示，不调用最终回答模型
+     * @param content 拼接后的资料文本，包含引用编号和扩展后的 Chunk 内容，用于填充回答提示词；未命中时为 null
+     * @param sources 与资料文本对应的结构化引用来源，供前端展示文档及 Chunk 上下文；未命中时为空列表
+     * @param trace 会话与检索追踪信息，记录历史来源、问题改写结果及各阶段候选数量
+     */
     public record PreparedRagContext(
             UUID knowledgeBaseId,
             ConversationContext conversationContext,

@@ -1,4 +1,4 @@
-package com.elliot.ai.rag.evaluation;
+package com.elliot.ai.rag.evaluation.conversation;
 
 import com.elliot.ai.common.util.JsonUtils;
 import com.elliot.ai.rag.evaluation.conversation.model.ConversationRewriteEvaluationCase;

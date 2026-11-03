@@ -27,7 +27,7 @@ spring:
         # 向量维度，必须与 Embedding 模型的输出维度一致；nomic-embed-text 输出 768 维。
         dimensions: 768
   flyway:
-    enable: true
+    enabled: true
     locations: classpath:db/migration
     encoding: utf-8
 
@@ -75,3 +75,16 @@ app:
       enabled: true
       #Query Rewrite 使用的改写模型
       model-code: qwen3.8-flash
+    conversation:
+      memory:
+        # 会话查询改写时最多加载的历史消息数量。
+        max-message: ${CONVERSATION_MEMORY_MAX_MESSAGE:10}
+        # 会话查询改写时加载的历史消息最大字符数，避免上下文过长。
+        max-history-chars: ${CONVERSATION_MEMORY_MAX_HISTORY_CHARS:12000}
+        # 会话历史缓存的过期时间。
+        ttl: ${CONVERSATION_MEMORY_TTL:30m}
+      query-rewrite:
+        # 是否根据历史对话将当前问题改写为可独立理解的检索问题。
+        enabled: ${CONVERSATION_QUERY_REWRITE_ENABLED:true}
+        # 会话查询改写使用的模型标识。
+        model-code: ${CONVERSATION_QUERY_REWRITE_MODEL:qwen3.8-flash}
