@@ -23,9 +23,12 @@ import com.elliot.ai.rag.retrieval.model.RerankCandidate;
 import com.elliot.ai.rag.retrieval.pipeline.RagRetrievalPipeline;
 import com.elliot.ai.rag.retrieval.pipeline.model.RagRetrievalPipelineResult;
 import com.elliot.ai.rag.router.ChatClientRouter;
+import com.elliot.ai.rag.router.ChatIntent;
+import com.elliot.ai.rag.router.ChatIntentRouter;
 import com.elliot.ai.rag.service.ConversationHistoryService;
 import com.elliot.ai.rag.service.ConversationService;
 import com.elliot.ai.rag.service.RagService;
+import com.elliot.ai.rag.tool.KnowledgeBaseTools;
 import com.elliot.ai.rag.trace.model.ConversationTrace;
 import com.elliot.ai.rag.trace.model.RagTrace;
 import lombok.RequiredArgsConstructor;
@@ -42,6 +45,7 @@ import reactor.core.scheduler.Schedulers;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -61,6 +65,8 @@ public class RagServiceImpl implements RagService {
     private final ConversationService conversationService;
     private final ConversationHistoryService conversationHistoryService;
     private final ConversationQueryRewriteService conversationQueryRewriteService;
+    private final ChatIntentRouter chatIntentRouter;
+    private final KnowledgeBaseTools knowledgeBaseTools;
 
 
     /**
@@ -88,7 +94,13 @@ public class RagServiceImpl implements RagService {
          * 会话查询、历史缓存读取、问题改写和检索包含阻塞调用，
          * 将整个上下文准备任务调度到 boundedElastic 线程池。
          */
-        return Mono.fromCallable(() -> preparedRagContext(ragChatDto))
+        return Mono.fromCallable(() -> {
+                    ConversationContext context = prepareConversation(ragChatDto);
+                    ChatIntent intent = chatIntentRouter.route(ragChatDto.modelCode(), context.standaloneQuery());
+                    PreparedRagContext ragContext = intent == ChatIntent.RAG ?
+                            retrieveRagContext(ragChatDto, context) : null;
+                    return new StreamPreparation(context, intent, ragContext);
+                })
                 .subscribeOn(Schedulers.boundedElastic())
                 /*
                  * Mono 只产生一个 PreparedRagContext，模型回答则会产生多条事件，
@@ -99,17 +111,15 @@ public class RagServiceImpl implements RagService {
                     // 历史读取和检索已完成；保存本次原始问题后，再订阅回答事件流。
                     Mono<Void> saveUserMessage =
                             Mono.fromRunnable(() ->
-                                            conversationHistoryService.saveUserMessage(conversationContext.conversationId(), conversationContext.originalQuery())
-                                    ).subscribeOn(Schedulers.boundedElastic())
-                                    .then();
-                    return saveUserMessage.thenMany(
-                            createEventStream(
-                                    prepared,
-                                    // 根据本次请求选择 qwen、local 等已注册的聊天客户端。
-                                    chatClientRouter.get(ragChatDto.modelCode())
-                            )
-                    );
-
+                                    conversationHistoryService.saveUserMessage(conversationContext.conversationId(), conversationContext.originalQuery())
+                            ).subscribeOn(Schedulers.boundedElastic()).then();
+                    return saveUserMessage.thenMany(Flux.defer(() -> {
+                        ChatClient client = chatClientRouter.get(ragChatDto.modelCode());
+                        if (prepared.intent() == ChatIntent.DOCUMENT_COUNT) {
+                            return createToolEventStream(ragChatDto, prepared.conversationContext(), client);
+                        }
+                        return createEventStream(prepared.preparedRagContext(), client);
+                    }));
                 })
                 // 将准备上下文、保存用户消息等未被内部处理的异常转换为 error、done 事件。
                 .onErrorResume(exception -> errorEventStream("知识库检索失败"));
@@ -118,8 +128,32 @@ public class RagServiceImpl implements RagService {
     @Override
     public RagChatResultDto ragChat(RagChatDto ragChatDto) {
         ChatClient selectedChatClient = chatClientRouter.get(ragChatDto.modelCode());
-        PreparedRagContext preparedRagContext = preparedRagContext(ragChatDto);
-        ConversationContext conversationContext = preparedRagContext.conversationContext();
+        ConversationContext conversationContext = prepareConversation(ragChatDto);
+        ChatIntent intent = chatIntentRouter.route(ragChatDto.modelCode(), conversationContext.standaloneQuery());
+        if (intent == ChatIntent.DOCUMENT_COUNT) {
+            conversationHistoryService.saveUserMessage(conversationContext.conversationId(),
+                    conversationContext.originalQuery());
+            ChatResponse chatResponse = selectedChatClient.prompt()
+                    .system("你是知识库助手。回答文档数量问题时必须调用 countDocuments 工具，不允许猜测数量。")
+                    .user(conversationContext.standaloneQuery())
+                    .tools(knowledgeBaseTools)
+                    .toolContext(Map.of("knowledgeBaseId", ragChatDto.knowledgeBaseId()))
+                    .call()
+                    .chatResponse();
+            String content = extractAnswer(chatResponse);
+            conversationHistoryService.saveAssistantMessage(conversationContext.conversationId(), content);
+            return new RagChatResultDto(ragChatDto.knowledgeBaseId(),
+                    conversationContext.conversationId(),
+                    conversationContext.originalQuery(),
+                    content,
+                    false,
+                    List.of(),
+                    null,
+                    new RagTrace(ConversationTrace.from(conversationContext), null),
+                    RagChatResultDto.AnswerMode.TOOL
+            );
+        }
+        PreparedRagContext preparedRagContext = retrieveRagContext(ragChatDto, conversationContext);
         if (!preparedRagContext.knowledgeFound) {
             conversationHistoryService.saveUserMessage(conversationContext.conversationId(),
                     conversationContext.originalQuery());
@@ -133,7 +167,8 @@ public class RagServiceImpl implements RagService {
                     false,
                     preparedRagContext.sources(),
                     null,
-                    preparedRagContext.trace()
+                    preparedRagContext.trace(),
+                    RagChatResultDto.AnswerMode.RAG
             );
         }
         conversationHistoryService.saveUserMessage(conversationContext.conversationId(), conversationContext.originalQuery());
@@ -155,7 +190,8 @@ public class RagServiceImpl implements RagService {
                 true,
                 preparedRagContext.sources(),
                 extractUsage(chatResponse),
-                preparedRagContext.trace()
+                preparedRagContext.trace(),
+                RagChatResultDto.AnswerMode.RAG
         );
     }
 
@@ -179,6 +215,9 @@ public class RagServiceImpl implements RagService {
 
         ServerSentEvent<RagStreamEvent> traceEvent = event("trace",
                 RagStreamEvent.trace(prepared.trace()));
+
+        ServerSentEvent<RagStreamEvent> modeEvent =
+                event("mode", RagStreamEvent.mode("RAG"));
 
         // 无论是否命中资料，都先让前端拿到引用来源，便于尽早渲染引用区域。
         ServerSentEvent<RagStreamEvent> sourcesEvent = event("sources",
@@ -222,13 +261,18 @@ public class RagServiceImpl implements RagService {
 
                     // 仅发送有实际文本的片段；保留原始空格，避免单词在片段边界粘连。
                     String content = extractStreamingAnswer(response);
-                    if (StringUtils.hasText(content)) {
+                    if (content != null && !content.isEmpty()) {
                         answer.append(content);
                         sink.next(event("delta", RagStreamEvent.delta(content)));
                     }
                 })
-                // 模型没有产生任何文本时，仍返回一个可理解的占位回答。
-                .switchIfEmpty(Flux.just(event("delta", RagStreamEvent.delta(LLM_UNKNOW))));
+                .concatWith(Flux.defer(() -> {
+                    if (StringUtils.hasText(answer.toString())) {
+                        return Flux.empty();
+                    }
+                    answer.append(LLM_UNKNOW);
+                    return Flux.just(event("delta", RagStreamEvent.delta(LLM_UNKNOW)));
+                }));
         //保存llm result
         Mono<Void> saveAssistantMessage = Mono.fromRunnable(() -> {
                     String result = StringUtils.hasText(answer.toString()) ? answer.toString() : LLM_UNKNOW;
@@ -244,9 +288,67 @@ public class RagServiceImpl implements RagService {
                         RagStreamEvent.done(tokenUsageRef.get())))));
 
         // concat 保证 sources、回答增量、done 三类事件不会乱序。
-        return Flux.concat(Flux.just(conversationEvent, traceEvent, sourcesEvent), answerFlux, doneFlux)
+        return Flux.concat(Flux.just(conversationEvent, modeEvent, traceEvent, sourcesEvent), answerFlux, doneFlux)
                 // 流式模型调用失败后，仍以 SSE 事件让前端结束加载状态。
                 .onErrorResume(exception -> errorEventStream(LLM_UNKNOW));
+    }
+
+
+    private Flux<ServerSentEvent<RagStreamEvent>> createToolEventStream(
+            RagChatDto ragChatDto,
+            ConversationContext context,
+            ChatClient selectedChatClient
+    ) {
+        ServerSentEvent<RagStreamEvent> conversationEvent = event("conversation", RagStreamEvent.conversation(context.conversationId()));
+        ServerSentEvent<RagStreamEvent> modelEvent = event("mode", RagStreamEvent.mode("TOOL"));
+        ServerSentEvent<RagStreamEvent> sourceEvent = event("sources", RagStreamEvent.sources(List.of()));
+        RagTrace trace = new RagTrace(ConversationTrace.from(context), null);
+        ServerSentEvent<RagStreamEvent> traceEvent = event("trace",
+                RagStreamEvent.trace(trace));
+        AtomicReference<TokenUsageDto> tokenUsageRef = new AtomicReference<>();
+        StringBuilder answer = new StringBuilder();
+        Flux<ServerSentEvent<RagStreamEvent>> answerFlux = selectedChatClient.prompt()
+                .system("你是知识库助手。回答文档数量问题时必须调用 countDocuments 工具，不允许猜测数量。")
+                .user(context.standaloneQuery())
+                .tools(knowledgeBaseTools)
+                .toolContext(Map.of("knowledgeBaseId", ragChatDto.knowledgeBaseId()))
+                .stream()
+                .chatResponse()
+                .<ServerSentEvent<RagStreamEvent>>handle((response, sink) -> {
+                    TokenUsageDto tokenUsageDto = extractUsage(response);
+                    if (tokenUsageDto != null) {
+                        tokenUsageRef.set(tokenUsageDto);
+                    }
+                    String content = extractStreamingAnswer(response);
+                    // 保留独立的空格和换行片段，避免单词粘连或丢失排版。
+                    if (content != null && !content.isEmpty()) {
+                        answer.append(content);
+                        sink.next(event("delta", RagStreamEvent.delta(content)));
+                    }
+                })
+                // 所有片段接收完成后，再判断整体回答是否包含有效文本。
+                .concatWith(Flux.defer(() -> {
+                    if (StringUtils.hasText(answer.toString())) {
+                        return Flux.empty();
+                    }
+                    answer.append(LLM_UNKNOW);
+                    return Flux.just(event("delta", RagStreamEvent.delta(LLM_UNKNOW)));
+                }));
+        Mono<Void> saveAssistantMessage = Mono.fromRunnable(() -> {
+                    String result = StringUtils.hasText(answer.toString()) ? answer.toString() : LLM_UNKNOW;
+                    conversationHistoryService.saveAssistantMessage(context.conversationId(), result);
+                }).subscribeOn(Schedulers.boundedElastic()).then()
+                .onErrorResume(e -> {
+                    log.warn("Save assistant message failed, conversationId = {}", context.conversationId(), e);
+                    return Mono.empty();
+                });
+        Flux<ServerSentEvent<RagStreamEvent>> doneEvent = saveAssistantMessage
+                .thenMany(Flux.defer(() -> Flux.just(event("done", RagStreamEvent.done(tokenUsageRef.get())))));
+        return Flux.concat(Flux.just(conversationEvent, modelEvent, traceEvent, sourceEvent), answerFlux, doneEvent)
+                .onErrorResume(e -> {
+                    log.error("Tool Calling stream Failed", e);
+                    return errorEventStream(LLM_UNKNOW);
+                });
     }
 
     private Flux<ServerSentEvent<RagStreamEvent>> errorEventStream(String message) {
@@ -263,13 +365,30 @@ public class RagServiceImpl implements RagService {
                 .build();
     }
 
-    private PreparedRagContext preparedRagContext(RagChatDto ragChatDto) {
+    /**
+     * 准备本轮问答的会话上下文，将依赖历史的追问改写为可独立理解的问题。
+     *
+     * <p>未提供会话 ID 时，根据当前问题创建会话；提供会话 ID 时，查询并校验
+     * 其所属知识库。随后读取历史消息并执行会话问题改写，供后续检索和回答生成使用。
+     * 本轮用户消息由调用方在历史读取之后保存，避免当前问题重复进入改写上下文。</p>
+     *
+     * @param ragChatDto 包含知识库 ID、可选会话 ID 和当前问题的问答请求
+     * @return 包含会话 ID、历史读取结果、原始问题、独立问题及改写标记的会话上下文
+     * @throws BusinessException 指定会话不存在或不属于当前知识库时抛出
+     */
+    private ConversationContext prepareConversation(RagChatDto ragChatDto) {
+        // 去除问题首尾空白，作为本轮原始问题，并用于生成新会话的标题。
         String originalQuestion = ragChatDto.question().trim();
+        // 创建新会话，或查询并校验请求指定的已有会话。
         Conversation conversation = resolveConversation(ragChatDto, originalQuestion);
-        UUID conversationId = conversation.getId();
-        ConversationContext conversationContext = preparedConversationContext(conversationId, originalQuestion);
-        String retrievalQuestion = conversationContext.standaloneQuery();
+        // 读取该会话的历史消息，补全追问中的指代和省略信息，封装为会话上下文。
+        return preparedConversationContext(conversation.getId(), originalQuestion);
+    }
 
+    private PreparedRagContext retrieveRagContext(RagChatDto ragChatDto,
+                                                  ConversationContext conversationContext) {
+        UUID conversationId = conversationContext.conversationId();
+        String retrievalQuestion = conversationContext.standaloneQuery();
         int topK = ragChatDto.topK() == null ? ragProperties.getTopK() : ragChatDto.topK();
         double threshold = ragChatDto.similarityThreshold() == null ? ragProperties.getSimilarityThreshold() : ragChatDto.similarityThreshold();
         RagRetrievalPipelineResult retrieveResult = ragRetrievalPipeline.retrieve(
@@ -296,6 +415,35 @@ public class RagServiceImpl implements RagService {
                 contextResult.ragSources,
                 trace
         );
+
+    }
+
+    /**
+     * 按顺序完成会话准备和知识库检索，构建回答生成所需的完整 RAG 上下文。
+     *
+     * <p>先创建或校验会话、读取历史并改写追问，再使用独立问题执行检索流水线。
+     * 命中资料时扩展相邻 Chunk 并拼接带引用编号的上下文，同时汇总会话及检索追踪信息；
+     * 未命中时返回 {@code knowledgeFound=false}、资料文本为 null、引用列表为空的上下文。</p>
+     *
+     * <p>本方法包含数据库、缓存及模型等阻塞调用。流式调用方应将其调度到适合阻塞任务的线程池。
+     * 本轮用户消息保存、最终回答生成及助手消息保存由后续流程负责。</p>
+     *
+     * @param ragChatDto 包含知识库 ID、可选会话 ID、当前问题及检索参数的问答请求
+     * @return 汇总会话上下文、资料命中状态、资料文本、引用来源及追踪信息的准备结果
+     */
+    private PreparedRagContext preparedRagContext(RagChatDto ragChatDto) {
+        // 1. 确定会话并结合历史理解当前问题，得到可独立检索的问题。
+        ConversationContext conversationContext = prepareConversation(ragChatDto);
+        ChatIntent intent = chatIntentRouter.route(ragChatDto.modelCode(), conversationContext.standaloneQuery());
+        // 2. 执行检索和资料上下文构建，将检索结果与会话信息合并为回答生成的输入。
+        return retrieveRagContext(ragChatDto, conversationContext);
+    }
+
+    private record StreamPreparation(
+            ConversationContext conversationContext,
+            ChatIntent intent,
+            PreparedRagContext preparedRagContext
+    ) {
     }
 
 
@@ -505,12 +653,12 @@ public class RagServiceImpl implements RagService {
      * <p>由 {@link #preparedRagContext(RagChatDto)} 构建；此时已完成会话解析、
      * 历史读取、问题改写、检索及资料上下文构建，尚未保存本轮用户消息或生成回答。</p>
      *
-     * @param knowledgeBaseId 本次检索所属的知识库 ID
+     * @param knowledgeBaseId     本次检索所属的知识库 ID
      * @param conversationContext 会话上下文，包含会话 ID、历史读取结果、原始问题及改写后的独立问题
-     * @param knowledgeFound 是否检索到候选资料；为 false 时返回兜底提示，不调用最终回答模型
-     * @param content 拼接后的资料文本，包含引用编号和扩展后的 Chunk 内容，用于填充回答提示词；未命中时为 null
-     * @param sources 与资料文本对应的结构化引用来源，供前端展示文档及 Chunk 上下文；未命中时为空列表
-     * @param trace 会话与检索追踪信息，记录历史来源、问题改写结果及各阶段候选数量
+     * @param knowledgeFound      是否检索到候选资料；为 false 时返回兜底提示，不调用最终回答模型
+     * @param content             拼接后的资料文本，包含引用编号和扩展后的 Chunk 内容，用于填充回答提示词；未命中时为 null
+     * @param sources             与资料文本对应的结构化引用来源，供前端展示文档及 Chunk 上下文；未命中时为空列表
+     * @param trace               会话与检索追踪信息，记录历史来源、问题改写结果及各阶段候选数量
      */
     public record PreparedRagContext(
             UUID knowledgeBaseId,

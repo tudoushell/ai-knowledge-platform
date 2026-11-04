@@ -13,6 +13,12 @@ public record RagChatResultDto(
     boolean knowledgeFound,
     List<RagSourceDto>  sources,
     TokenUsageDto tokenUsage,
-    RagTrace trace
+    RagTrace trace,
+    AnswerMode answerModel
 ) {
+
+    public enum AnswerMode {
+        TOOL,
+        RAG
+    }
 }

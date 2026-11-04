@@ -88,10 +88,10 @@ public class RedisConversationMemoryCache implements ConversationMemoryCache {
     @Override
     public void append(UUID conversationId, ConversationMessage message) {
         String key = buildKey(conversationId);
-        if (!redisTemplate.hasKey(key)) {
-            return;
-        }
         try {
+            if (!redisTemplate.hasKey(key)) {
+                return;
+            }
             redisTemplate.opsForList().rightPush(key, JsonUtils.toJson(message));
             redisTemplate.opsForList().trim(key, -properties.getMaxMessage(), -1);
             redisTemplate.expire(key, properties.getTtl());

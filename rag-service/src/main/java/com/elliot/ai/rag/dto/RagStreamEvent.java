@@ -37,4 +37,8 @@ public record RagStreamEvent(
     public static RagStreamEvent trace(RagTrace trace) {
         return new RagStreamEvent("trace", null, null, List.of(), null, trace);
     }
+
+    public static RagStreamEvent mode(String mode) {
+        return new RagStreamEvent("mode", null, mode, List.of(), null, null);
+    }
 }

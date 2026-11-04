@@ -22,7 +22,7 @@ public class MultiQueryRetrievalServiceImpl implements MultiQueryRetrievalServic
 
     private final HybridRetrievalService hybridRetrievalService;
 
-    private MultiQueryProperties properties;
+    private final MultiQueryProperties properties;
 
     @Override
     public List<MultiQueryCandidate> retrieve(List<RetrievalQuery> queries) {
