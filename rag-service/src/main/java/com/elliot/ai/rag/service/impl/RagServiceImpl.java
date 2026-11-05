@@ -28,7 +28,7 @@ import com.elliot.ai.rag.router.ChatIntentRouter;
 import com.elliot.ai.rag.service.ConversationHistoryService;
 import com.elliot.ai.rag.service.ConversationService;
 import com.elliot.ai.rag.service.RagService;
-import com.elliot.ai.rag.tool.KnowledgeBaseTools;
+import com.elliot.ai.rag.tool.KnowledgeBaseToolRegistry;
 import com.elliot.ai.rag.trace.model.ConversationTrace;
 import com.elliot.ai.rag.trace.model.RagTrace;
 import lombok.RequiredArgsConstructor;
@@ -66,7 +66,7 @@ public class RagServiceImpl implements RagService {
     private final ConversationHistoryService conversationHistoryService;
     private final ConversationQueryRewriteService conversationQueryRewriteService;
     private final ChatIntentRouter chatIntentRouter;
-    private final KnowledgeBaseTools knowledgeBaseTools;
+    private final KnowledgeBaseToolRegistry knowledgeBaseToolRegistry;
 
 
     /**
@@ -116,7 +116,7 @@ public class RagServiceImpl implements RagService {
                     return saveUserMessage.thenMany(Flux.defer(() -> {
                         ChatClient client = chatClientRouter.get(ragChatDto.modelCode());
                         if (prepared.intent() == ChatIntent.DOCUMENT_COUNT) {
-                            return createToolEventStream(ragChatDto, prepared.conversationContext(), client);
+                            return createToolEventStream(ragChatDto, prepared.conversationContext(), client, prepared.intent);
                         }
                         return createEventStream(prepared.preparedRagContext(), client);
                     }));
@@ -136,7 +136,7 @@ public class RagServiceImpl implements RagService {
             ChatResponse chatResponse = selectedChatClient.prompt()
                     .system("你是知识库助手。回答文档数量问题时必须调用 countDocuments 工具，不允许猜测数量。")
                     .user(conversationContext.standaloneQuery())
-                    .tools(knowledgeBaseTools)
+                    .tools(knowledgeBaseToolRegistry.forIntent(intent))
                     .toolContext(Map.of("knowledgeBaseId", ragChatDto.knowledgeBaseId()))
                     .call()
                     .chatResponse();
@@ -297,8 +297,8 @@ public class RagServiceImpl implements RagService {
     private Flux<ServerSentEvent<RagStreamEvent>> createToolEventStream(
             RagChatDto ragChatDto,
             ConversationContext context,
-            ChatClient selectedChatClient
-    ) {
+            ChatClient selectedChatClient,
+            ChatIntent intent) {
         ServerSentEvent<RagStreamEvent> conversationEvent = event("conversation", RagStreamEvent.conversation(context.conversationId()));
         ServerSentEvent<RagStreamEvent> modelEvent = event("mode", RagStreamEvent.mode("TOOL"));
         ServerSentEvent<RagStreamEvent> sourceEvent = event("sources", RagStreamEvent.sources(List.of()));
@@ -310,7 +310,7 @@ public class RagServiceImpl implements RagService {
         Flux<ServerSentEvent<RagStreamEvent>> answerFlux = selectedChatClient.prompt()
                 .system("你是知识库助手。回答文档数量问题时必须调用 countDocuments 工具，不允许猜测数量。")
                 .user(context.standaloneQuery())
-                .tools(knowledgeBaseTools)
+                .tools(knowledgeBaseToolRegistry.forIntent(intent))
                 .toolContext(Map.of("knowledgeBaseId", ragChatDto.knowledgeBaseId()))
                 .stream()
                 .chatResponse()

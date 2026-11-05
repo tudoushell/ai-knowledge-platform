@@ -11,8 +11,11 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.model.ToolContext;
 import org.springframework.ai.tool.annotation.Tool;
+import org.springframework.ai.tool.annotation.ToolParam;
 import org.springframework.stereotype.Component;
+import org.springframework.util.StringUtils;
 
+import java.util.List;
 import java.util.UUID;
 
 @Slf4j
@@ -21,6 +24,38 @@ import java.util.UUID;
 public class KnowledgeBaseTools {
     private final KbDocumentService kbDocumentService;
     private final KnowledgeBaseService knowledgeBaseService;
+
+    @Tool(description = "根据关键词搜索文档")
+    public List<String> searchDocuments(
+            @ToolParam(description = "搜索关键词")
+            String keyword,
+
+            @ToolParam(
+                    description = "最大结果数量",
+                    required = false
+            )
+            Integer limit,
+
+            ToolContext context
+    ) {
+
+        if (!StringUtils.hasText(keyword)) {
+            throw new BusinessException(
+                    ResultCode.PARAM_ERROR,
+                    "搜索关键词不能为空"
+            );
+        }
+
+        int effectiveLimit = limit == null ? 5 : limit;
+
+        if (effectiveLimit < 1 || effectiveLimit > 20) {
+            throw new BusinessException(
+                    ResultCode.PARAM_ERROR,
+                    "结果数量必须在 1～20 之间"
+            );
+        }
+        return null;
+    }
 
     @Tool(
             name = "countDocuments",

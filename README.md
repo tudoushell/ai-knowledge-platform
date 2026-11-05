@@ -2,7 +2,7 @@
 
 基于 Java 17、Spring Boot 4.1.1、Spring AI 2.0.1、PostgreSQL / PGVector 和 Redis 的 RAG 知识平台。
 
-支持文档入库、多查询混合检索、带会话历史的问题改写，以及同步和 SSE 流式知识问答。
+支持文档入库、多查询混合检索、带会话历史的问题改写、文档数量工具查询，以及同步和 SSE 流式知识问答。
 
 ## 当前功能
 
@@ -12,7 +12,9 @@
 - 文档管理：查询文档详情、分页查看 Chunk、手动切块与索引，以及删除文档和关联派生数据。
 - 检索：向量召回与 PostgreSQL 关键词检索，单查询 RRF 融合、多查询按 Chunk ID 合并并再次 RRF 融合，最后进行 Rerank。
 - 问答：支持查询改写、查询扩展、相邻 Chunk 上下文扩展、引用来源和模型返回的 Token 用量。
+- 工具查询：通过模型识别文档数量查询意图，并提供 `countDocuments` 工具查询当前知识库的文档记录总数；数量与内容分析混合的问题仍走 RAG 流程。
 - 会话记忆：PostgreSQL 持久化用户与助手消息，Redis 缓存近期消息；按消息数量和字符数裁剪历史，并用于将追问改写为独立问题。
+- 前端会话：按轮展示问题与回答，支持连续追问、新建会话、停止生成、失败后编辑问题再发送，以及折叠查看引用和会话追踪。
 - 追踪信息：返回历史来源、缓存状态、历史窗口统计、问题改写结果和检索各阶段候选数量。
 
 当前会话删除已在服务层实现，会同时清理历史消息并尝试使缓存失效；尚未提供独立的会话管理 HTTP 接口。
@@ -57,6 +59,8 @@ PostgreSQL 默认连接为 `localhost:5432/ai_db`，用户名和密码均为 `po
 数据库连接配置位于 [application.yml](rag-service/src/main/resources/application.yml)，也可通过 `SPRING_DATASOURCE_URL`、`SPRING_DATASOURCE_USERNAME`、`SPRING_DATASOURCE_PASSWORD` 覆盖。Flyway 在应用启动时创建业务表，PGVector 表及向量索引由 Spring AI 初始化。
 
 Compose 只启动数据库和 Redis，不包含 Java 服务或 Ollama。如果使用 `.env` 向 Compose 传参，还需要将对应变量传给 Java 进程或 IDE 运行配置，Spring Boot 不会自动读取 Compose 的 `.env`。
+
+如果本机已有 Redis 容器，先确认实际使用的 Compose 文件、端口和 ACL 用户。修改本项目的 Compose 不会自动更新其他 Compose 创建的容器；需在实际实例中配置与应用一致的账号密码。同名容器或相同宿主端口会发生冲突，调整时应保留原有数据卷。
 
 ### 2. 准备模型
 
@@ -110,6 +114,8 @@ npm run dev
 
 前端构建、代理配置和生产部署说明见 [frontend/README.md](frontend/README.md)。
 
+问答页在当前页面保留多轮记录，后续提问自动携带会话 ID。“新建会话”清空本地记录，下次发送时创建新会话，不删除数据库历史。刷新页面不会自动恢复会话；切换知识库会清空当前记录并中断接收。生成期间可编辑下一条问题，但不能重复发送；停止生成保留已显示内容，不保证服务端撤销处理或消息保存。检索设置默认折叠，仅影响 RAG 分支。
+
 ## 从上传文档到问答
 
 先创建知识库：
@@ -152,25 +158,28 @@ curl -N -X POST http://localhost:8090/api/rag/chat/stream \
 
 首次请求省略 `conversationId`，服务自动创建会话。后续请求携带返回的 `conversationId` 和相同 `knowledgeBaseId`，即可使用历史消息进行追问改写。`modelCode` 必填，可通过 `GET /api/models` 查询；`topK` 可选，范围为 1～20；`similarityThreshold` 可选，范围为 0～1。
 
-调用 `/api/rag/chat` 可一次性获取完整回答，返回结果包含 `conversationId`、`answer`、`knowledgeFound`、`sources`、`tokenUsage` 和 `trace`。普通接口使用 `Result` 包装，流式接口直接返回 SSE。
+调用 `/api/rag/chat` 可一次性获取完整回答，返回结果包含 `conversationId`、`answer`、`knowledgeFound`、`sources`、`tokenUsage`、`trace` 和 `answerModel`。`answerModel` 为 `RAG` 或 `TOOL`（当前字段名为 `answerModel`）。工具回答不经过资料检索，`knowledgeFound=false`、`sources=[]`、`trace.retrieval=null`，不代表查询失败；同步工具回答当前不返回 Token 用量。普通接口使用 `Result` 包装，流式接口直接返回 SSE。
 
 ## RAG 流程与流式事件
 
 ```text
 创建或校验会话 → 读取历史窗口 → 会话问题改写为独立问题
-    → 检索查询改写 → 查询扩展
-    → 每个查询执行向量召回 + 关键词召回 → 第一层 RRF
-    → 跨查询按 Chunk ID 合并 + 第二层 RRF → Rerank → 最终 Top K
-    → 相邻 Chunk 扩展与上下文拼接 → 模型回答
+    → 意图路由
+        ├─ 文档数量查询 → 模型调用 countDocuments → 查询文档记录总数 → 模型回答
+        └─ RAG → 检索查询改写 → 查询扩展
+            → 每个查询执行向量召回 + 关键词召回 → 第一层 RRF
+            → 跨查询按 Chunk ID 合并 + 第二层 RRF → Rerank → 最终 Top K
+            → 相邻 Chunk 扩展与上下文拼接 → 模型回答
 ```
 
-历史消息当前用于问题改写；最终回答提示词使用独立问题和检索上下文。没有召回资料时，服务直接返回兜底提示，不调用回答模型。
+历史消息当前用于问题改写；RAG 最终回答提示词使用独立问题和检索上下文。RAG 没有召回资料时，服务直接返回兜底提示，不调用最终回答模型；之前的问题改写和意图路由仍可能调用模型。工具分支使用独立问题及知识库上下文调用工具，不执行向量检索、关键词检索或 Rerank，引用来源为空。
 
-SSE 正常顺序为 `conversation → trace → sources → delta... → done`：
+命中资料的 RAG 回答和工具回答，SSE 正常顺序为 `conversation → mode → trace → sources → delta... → done`。当前 RAG 未命中资料分支尚未发送 `mode`，顺序仍为 `conversation → trace → sources → delta → done`，前端兼容该情况。
 
 | 事件 | 内容 |
 | --- | --- |
 | `conversation` | 本次会话 ID，供后续追问使用 |
+| `mode` | `content` 为 `RAG` 或 `TOOL`，标识回答模式 |
 | `trace` | 会话历史来源、缓存状态、窗口统计及检索追踪信息 |
 | `sources` | 引用来源和关联 Chunk 信息 |
 | `delta` | 一段回答文本 |
@@ -179,7 +188,7 @@ SSE 正常顺序为 `conversation → trace → sources → delta... → done`�
 
 `trace.conversation` 包含 `memorySource`（`REDIS` / `DATABASE`）、`cacheStatus`（`HIT` / `MISS` / `ERROR`）、`rawMessageCount`、`windowMessageCount`、`historyChars` 和会话改写信息。字符数按 Java `String.length()` 统计，不等同于 Token 数。
 
-`trace.retrieval` 包含检索查询改写结果、实际参与检索的查询列表、多查询候选数及 Rerank 输入、输出数量。
+RAG 分支的 `trace.retrieval` 包含检索查询改写结果、实际参与检索的查询列表、多查询候选数及 Rerank 输入、输出数量；工具分支该字段为 `null`。
 
 ## 主要配置
 
@@ -202,8 +211,10 @@ SSE 正常顺序为 `conversation → trace → sources → delta... → done`�
 | `RERANK_MODEL` | `rerank-v4.0-pro` | Rerank 模型 |
 | `cohere_api_key` / `alibaba_key` | 无 | Cohere / 阿里云模型密钥 |
 
-选择 `modelCode: local` 只改变回答模型；查询改写和扩展仍使用各自配置的模型。需要统一使用本地模型时，将三个改写 / 扩展模型变量也设为 `local`。
+`modelCode` 用于选择意图路由和最终回答模型，工具分支也使用该模型调用工具，因此模型需要支持工具调用。查询改写和扩展仍使用各自配置的模型。需要统一使用本地模型时，将 `modelCode` 和三个改写 / 扩展模型变量都设为 `local`，并确认本地模型支持工具调用。
 
 更多默认值见 [application.yml](rag-service/src/main/resources/application.yml)：最终 `top-k=5`、每路召回 `recall-top-k=20`、Rerank 候选上限 `10`、相邻 Chunk 半径 `1`、上下文字符上限 `20000`。原始文件和解析产物分别保存在工作目录下的 `data/uploads`、`data/parsed`。
 
-Redis 历史缓存使用 `rag:conversation:history:{conversationId}` 作为 Key。读取返回 `MISS` 或 `ERROR` 时查询数据库并尝试回填缓存；命中时直接使用缓存内容。当前缓存多步写入没有事务封装，也没有持久化的失效重试机制；读取降级不代表 Redis 故障下所有写入路径都能成功，缓存恢复后也可能暂时命中旧数据。
+Redis 历史缓存使用 `rag:conversation:history:{conversationId}` 作为 Key。读取返回 `MISS` 或 `ERROR` 时查询数据库并尝试回填缓存；命中时直接使用缓存内容。`put` 使用 Lua 脚本原子执行删除、写入、裁剪和毫秒级 TTL 设置；`append` 的存在性检查、追加、裁剪和过期时间刷新仍是独立命令，尚不具备整体原子性。
+
+用户与助手消息先保存到 PostgreSQL，再尝试追加缓存。Redis 读写及失效操作的连接异常会被捕获并记录，不应因缓存故障直接中断数据库主流程；请求仍可能因数据库、模型或检索异常失败。当前没有持久化的缓存失效重试机制，也没有版本控制来防止旧快照覆盖并发追加；Redis 恢复后仍可能暂时读到旧缓存。
