@@ -21,6 +21,7 @@
     <modules>
         <module>ai-common</module>
         <module>rag-service</module>
+        <module>identity-service</module>
     </modules>
 
     <properties>

@@ -7,6 +7,7 @@ import com.elliot.ai.rag.entity.KbDocument;
 import com.elliot.ai.rag.entity.KnowledgeBase;
 import com.elliot.ai.rag.service.KbDocumentService;
 import com.elliot.ai.rag.service.KnowledgeBaseService;
+import com.elliot.ai.rag.tool.result.ToolResult;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.model.ToolContext;
@@ -61,7 +62,7 @@ public class KnowledgeBaseTools {
             name = "countDocuments",
             description = "查询当前知识库中的文档总数量"
     )
-    public long countDocuments(ToolContext toolContext) {
+    public ToolResult<Long> countDocuments(ToolContext toolContext) {
         Object object = toolContext.getContext().get("knowledgeBaseId");
         if (object == null) {
             throw new BusinessException(
@@ -84,7 +85,8 @@ public class KnowledgeBaseTools {
                     "知识库不存在"
             );
         }
-        return kbDocumentService.count(new LambdaQueryWrapper<KbDocument>()
+        long documentCount = kbDocumentService.count(new LambdaQueryWrapper<KbDocument>()
                 .eq(KbDocument::getKnowledgeBaseId, knowledgeBaseId));
+        return ToolResult.success(documentCount);
     }
 }

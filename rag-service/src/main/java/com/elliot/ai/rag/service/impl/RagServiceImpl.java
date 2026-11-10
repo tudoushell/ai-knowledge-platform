@@ -4,6 +4,7 @@ import com.elliot.ai.common.enums.ResultCode;
 import com.elliot.ai.common.exception.BusinessException;
 import com.elliot.ai.common.prompt.PromptTemplate;
 import com.elliot.ai.common.prompt.PromptTemplateConfig;
+import com.elliot.ai.identity.security.CurrentUserProvider;
 import com.elliot.ai.rag.config.RagProperties;
 import com.elliot.ai.rag.dto.ExpandedSource;
 import com.elliot.ai.rag.dto.RagChatDto;
@@ -36,6 +37,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.metadata.Usage;
 import org.springframework.ai.chat.model.ChatResponse;
+import org.springframework.ai.chat.model.Generation;
+import org.springframework.ai.model.tool.ToolCallLimitExceededException;
 import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -67,6 +70,7 @@ public class RagServiceImpl implements RagService {
     private final ConversationQueryRewriteService conversationQueryRewriteService;
     private final ChatIntentRouter chatIntentRouter;
     private final KnowledgeBaseToolRegistry knowledgeBaseToolRegistry;
+    private final CurrentUserProvider currentUserProvider;
 
 
     /**
@@ -140,6 +144,7 @@ public class RagServiceImpl implements RagService {
                     .toolContext(Map.of("knowledgeBaseId", ragChatDto.knowledgeBaseId()))
                     .call()
                     .chatResponse();
+            checkToolCallLimit(chatResponse);
             String content = extractAnswer(chatResponse);
             conversationHistoryService.saveAssistantMessage(conversationContext.conversationId(), content);
             return new RagChatResultDto(ragChatDto.knowledgeBaseId(),
@@ -193,6 +198,31 @@ public class RagServiceImpl implements RagService {
                 preparedRagContext.trace(),
                 RagChatResultDto.AnswerMode.RAG
         );
+    }
+
+    /**
+     * 检查模型响应是否包含工具调用次数超限的结束标记。
+     *
+     * <p>响应或首个结果为空时跳过检查；任一结果包含超限标记时抛出业务异常。
+     * 此方法只检查响应标记，工具调用次数的限制由工具调用管理器负责。</p>
+     *
+     * @param response 模型响应，允许为空
+     * @throws BusinessException 响应中存在工具调用次数超限标记时抛出
+     */
+    private void checkToolCallLimit(ChatResponse response) {
+        if (response == null || response.getResult() == null) {
+            return;
+        }
+        List<Generation> results = response.getResults();
+        boolean exceeded = results.stream()
+                .anyMatch(each ->
+                        ToolCallLimitExceededException.FINISH_REASON.equals(each.getMetadata().getFinishReason()));
+        if (exceeded) {
+            throw new BusinessException(
+                    ResultCode.FAIL,
+                    "工具调用次数超过限制"
+            );
+        }
     }
 
     /**
@@ -315,6 +345,8 @@ public class RagServiceImpl implements RagService {
                 .stream()
                 .chatResponse()
                 .<ServerSentEvent<RagStreamEvent>>handle((response, sink) -> {
+                    //处理调用工具是否达上限
+                    checkToolCallLimit(response);
                     TokenUsageDto tokenUsageDto = extractUsage(response);
                     if (tokenUsageDto != null) {
                         tokenUsageRef.set(tokenUsageDto);

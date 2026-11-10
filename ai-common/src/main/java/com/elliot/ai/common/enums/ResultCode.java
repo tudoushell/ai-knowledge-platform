@@ -1,30 +1,48 @@
 package com.elliot.ai.common.enums;
 
-/** 接口响应状态码。 */
+/**
+ * 接口响应状态码。
+ */
 public enum ResultCode {
 
-    /** 请求处理成功。 */
+    /**
+     * 请求处理成功。
+     */
     SUCCESS(200, "成功"),
 
-    /** 请求参数错误。 */
+    /**
+     * 请求参数错误。
+     */
     PARAM_ERROR(400, "参数错误"),
 
-    /** 请求资源不存在。 */
+    /**
+     * 请求资源不存在。
+     */
     NOT_FOUND(404, "资源不存在"),
 
-    /** 服务端处理失败。 */
-    FAIL(500, "失败");
+    /**
+     * 服务端处理失败。
+     */
+    FAIL(500, "失败"),
+    /**
+     * 未认证
+     */
+    UNAUTHORIZED(401, "未认证");
 
-    /** 业务状态码。 */
+    /**
+     * 业务状态码。
+     */
     private final Integer code;
 
-    /** 状态码默认消息。 */
+    /**
+     * 状态码默认消息。
+     */
     private final String message;
 
     /**
      * 构造响应状态码。
      *
-     * @param code 业务状态码
+     * @param code    业务状态码
      * @param message 状态码默认消息
      */
     ResultCode(Integer code, String message) {

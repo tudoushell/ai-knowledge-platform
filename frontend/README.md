@@ -14,6 +14,14 @@ npm run dev
 
 访问 `http://localhost:5173`。所有 `/api` 请求（含上传、任务轮询和 SSE）通过 Vite 代理到后端，无需为开发环境开放 CORS。
 
+页面会先尝试恢复登录状态；没有有效会话时显示登录页。使用数据库中已有且已启用的用户账号登录，当前页面不提供注册。Flyway 的 V11 迁移会初始化 `admin` 管理员，初始密码使用初始化时提供的值；SQL 仅保存 BCrypt 哈希。已有同名账号时不会重置密码或提升权限。
+
+本地使用 HTTP 时，为后端设置 `REFRESH_COOKIE_SECURE=false`；生产环境使用 HTTPS 并保持 `true`。Refresh Token 通过 HttpOnly Cookie 保存，浏览器自动收发，前端不会读取或存储它。Access Token 只放在内存，不写入 localStorage 或 sessionStorage。
+
+登录、刷新、退出请求携带 `X-Requested-With: XMLHttpRequest` 和 Cookie；其他 API、文件上传及 SSE 请求自动携带 `Authorization: Bearer …`。Access Token 即将过期或接口返回 401 时，同一页面共享一次刷新；只在流开始之前重试认证失败的 SSE 请求，不重放已接收的回答。退出成功或刷新令牌失效时卸载工作台，停止轮询与流式请求，清理页面内的数据。
+
+默认使用同源 `/api` 代理。若改为浏览器直接跨源访问，后端需要配置明确的可信 CORS 来源、允许凭据及保护请求头；不要为携带凭据的请求开放任意来源。
+
 后端端口或地址不同时：
 
 ```bash
@@ -40,8 +48,10 @@ npm run preview
 
 ```text
 src/
-├── App.vue                       # 工作台、知识库侧栏、通知
+├── App.vue                       # 登录状态、会话恢复和页面切换
+├── Workspace.vue                 # 工作台、知识库侧栏、通知和退出入口
 ├── components/
+│   ├── LoginPage.vue             # 登录表单、密码显示和错误反馈
 │   ├── DocumentsPanel.vue        # 上传、处理、文档列表
 │   ├── DocumentInspector.vue     # 文件详情、Chunk 和任务历史分页
 │   ├── SearchPanel.vue           # 向量检索、关键词检索
@@ -51,6 +61,7 @@ src/
 │   └── MarkdownContent.vue       # 回答 Markdown 展示
 ├── composables/useWorkspace.js   # 知识库、文档状态和任务轮询
 ├── services/api.js               # REST 请求、SSE 流解析
+├── services/auth.js              # Cookie 认证、内存令牌和共享刷新请求
 ├── utils/                        # 格式化、原有 Markdown 子集渲染器
 └── assets/app.css                # 原工作台样式
 ```

@@ -97,6 +97,25 @@ springdoc:
     path: /swagger-ui.html
 
 app:
+  security:
+    refresh-cookie:
+      path: ${REFRESH_COOKIE_PATH:/api/auth}
+      # HTTPS 使用 true；本地 HTTP 调试可设置 REFRESH_COOKIE_SECURE=false。
+      secure: ${REFRESH_COOKIE_SECURE:true}
+      same-site: ${REFRESH_COOKIE_SAME_SITE:Lax}
+    jwt:
+      # JWT 签发者
+      issuer: ${JWT_ISSUER:ai-knowledge-platform}
+      # Access Token 有效期
+      access-token-ttl: ${JWT_ACCESS_TOKEN_TTL:15m}
+      # Refresh Token 有效期
+      refresh-token-ttl: ${JWT_REFRESH_TOKEN_TTL:7d}
+      # RSA 密钥 ID
+      key-id: ${JWT_KEY_ID:ai-knowledge-platform-rs256-1}
+      # RSA 私钥
+      private-key-location: ${JWT_PRIVATE_KEY_LOCATION:file:.local/keys/jwt-private.pem}
+      # RSA 公钥
+      public-key-location: ${JWT_PUBLIC_KEY_LOCATION:file:.local/keys/jwt-public.pem}
   storage:
     # 原始上传文件保存目录。
     root-directory: ./data/uploads

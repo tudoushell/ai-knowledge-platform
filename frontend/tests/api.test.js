@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { api, parseSseMessage, streamSse } from "../src/services/api.js";
+import { createApiClient, parseSseMessage } from "../src/services/api.js";
+const { api, streamSse } = createApiClient((...args) => fetch(...args));
 
 test("SSE 支持注释、多行数据与 CRLF", () => {
   assert.equal(parseSseMessage(": heartbeat"), null);
