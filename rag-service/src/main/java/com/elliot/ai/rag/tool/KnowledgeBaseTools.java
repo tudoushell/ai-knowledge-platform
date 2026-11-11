@@ -5,6 +5,7 @@ import com.elliot.ai.common.enums.ResultCode;
 import com.elliot.ai.common.exception.BusinessException;
 import com.elliot.ai.rag.entity.KbDocument;
 import com.elliot.ai.rag.entity.KnowledgeBase;
+import com.elliot.ai.rag.security.tool.ToolContextUserResolver;
 import com.elliot.ai.rag.service.KbDocumentService;
 import com.elliot.ai.rag.service.KnowledgeBaseService;
 import com.elliot.ai.rag.tool.result.ToolResult;
@@ -25,6 +26,7 @@ import java.util.UUID;
 public class KnowledgeBaseTools {
     private final KbDocumentService kbDocumentService;
     private final KnowledgeBaseService knowledgeBaseService;
+    private final ToolContextUserResolver userResolver;
 
     @Tool(description = "根据关键词搜索文档")
     public List<String> searchDocuments(
@@ -64,6 +66,8 @@ public class KnowledgeBaseTools {
     )
     public ToolResult<Long> countDocuments(ToolContext toolContext) {
         Object object = toolContext.getContext().get("knowledgeBaseId");
+        //暂不使用，后面引入多租户使用
+        String userId = userResolver.requireUserId(toolContext);
         if (object == null) {
             throw new BusinessException(
                     ResultCode.PARAM_ERROR,

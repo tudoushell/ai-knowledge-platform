@@ -1,5 +1,6 @@
 package com.elliot.ai.rag.tool;
 
+import com.elliot.ai.rag.security.tool.ToolContextUserResolver;
 import com.elliot.ai.common.enums.ResultCode;
 import com.elliot.ai.common.exception.BusinessException;
 import com.elliot.ai.common.util.JsonUtils;
@@ -49,7 +50,8 @@ public class KnowledgeBaseToolsTest {
     void setUp() {
         knowledgeBaseTools = new KnowledgeBaseTools(
                 kbDocumentService,
-                knowledgeBaseService
+                knowledgeBaseService,
+                new ToolContextUserResolver()
         );
     }
 
@@ -69,7 +71,7 @@ public class KnowledgeBaseToolsTest {
                 ))
                 .findFirst()
                 .orElseThrow();
-        ToolContext toolContext = new ToolContext(Map.of("knowledgeBaseId", knowledgeBaseId));
+        ToolContext toolContext = new ToolContext(Map.of("knowledgeBaseId", knowledgeBaseId, "userId", UUID.randomUUID().toString()));
         String call = callback.call("{}", toolContext);
         ToolResult toolResult = JsonUtils.fromJson(call, ToolResult.class);
         assertThat(toolResult).isNotNull();
@@ -149,7 +151,7 @@ public class KnowledgeBaseToolsTest {
                 .orElseThrow();
 
         ToolContext context = new ToolContext(
-                Map.of("requestId", "test")
+                Map.of("requestId", "test", "userId", UUID.randomUUID().toString())
         );
 
         assertThatThrownBy(() -> callback.call("{}", context))
@@ -200,7 +202,7 @@ public class KnowledgeBaseToolsTest {
 
     @Test
     void countDocumentsShouldRejectMissingContext() {
-        ToolContext context = new ToolContext(Map.of());
+        ToolContext context = new ToolContext(Map.of("userId", UUID.randomUUID().toString()));
 
         assertThatThrownBy(
                 () -> knowledgeBaseTools.countDocuments(context)

@@ -26,6 +26,7 @@ import com.elliot.ai.rag.retrieval.pipeline.model.RagRetrievalPipelineResult;
 import com.elliot.ai.rag.router.ChatClientRouter;
 import com.elliot.ai.rag.router.ChatIntent;
 import com.elliot.ai.rag.router.ChatIntentRouter;
+import com.elliot.ai.rag.security.tool.ToolContextKey;
 import com.elliot.ai.rag.service.ConversationHistoryService;
 import com.elliot.ai.rag.service.ConversationService;
 import com.elliot.ai.rag.service.RagService;
@@ -94,6 +95,7 @@ public class RagServiceImpl implements RagService {
      */
     @Override
     public Flux<ServerSentEvent<RagStreamEvent>> ragStreamChat(RagChatDto ragChatDto) {
+        String userId = currentUserProvider.requireUserId();
         /*
          * 会话查询、历史缓存读取、问题改写和检索包含阻塞调用，
          * 将整个上下文准备任务调度到 boundedElastic 线程池。
@@ -120,7 +122,7 @@ public class RagServiceImpl implements RagService {
                     return saveUserMessage.thenMany(Flux.defer(() -> {
                         ChatClient client = chatClientRouter.get(ragChatDto.modelCode());
                         if (prepared.intent() == ChatIntent.DOCUMENT_COUNT) {
-                            return createToolEventStream(ragChatDto, prepared.conversationContext(), client, prepared.intent);
+                            return createToolEventStream(ragChatDto, prepared.conversationContext(), client, prepared.intent, userId);
                         }
                         return createEventStream(prepared.preparedRagContext(), client);
                     }));
@@ -135,13 +137,18 @@ public class RagServiceImpl implements RagService {
         ConversationContext conversationContext = prepareConversation(ragChatDto);
         ChatIntent intent = chatIntentRouter.route(ragChatDto.modelCode(), conversationContext.standaloneQuery());
         if (intent == ChatIntent.DOCUMENT_COUNT) {
+            //当前用户ID
+            String userId = currentUserProvider.requireUserId();
             conversationHistoryService.saveUserMessage(conversationContext.conversationId(),
                     conversationContext.originalQuery());
             ChatResponse chatResponse = selectedChatClient.prompt()
                     .system("你是知识库助手。回答文档数量问题时必须调用 countDocuments 工具，不允许猜测数量。")
                     .user(conversationContext.standaloneQuery())
                     .tools(knowledgeBaseToolRegistry.forIntent(intent))
-                    .toolContext(Map.of("knowledgeBaseId", ragChatDto.knowledgeBaseId()))
+                    .toolContext(Map.of(
+                            "knowledgeBaseId", ragChatDto.knowledgeBaseId(),
+                            ToolContextKey.USER_ID, userId)
+                    )
                     .call()
                     .chatResponse();
             checkToolCallLimit(chatResponse);
@@ -328,7 +335,8 @@ public class RagServiceImpl implements RagService {
             RagChatDto ragChatDto,
             ConversationContext context,
             ChatClient selectedChatClient,
-            ChatIntent intent) {
+            ChatIntent intent,
+            String userId) {
         ServerSentEvent<RagStreamEvent> conversationEvent = event("conversation", RagStreamEvent.conversation(context.conversationId()));
         ServerSentEvent<RagStreamEvent> modelEvent = event("mode", RagStreamEvent.mode("TOOL"));
         ServerSentEvent<RagStreamEvent> sourceEvent = event("sources", RagStreamEvent.sources(List.of()));
@@ -341,7 +349,8 @@ public class RagServiceImpl implements RagService {
                 .system("你是知识库助手。回答文档数量问题时必须调用 countDocuments 工具，不允许猜测数量。")
                 .user(context.standaloneQuery())
                 .tools(knowledgeBaseToolRegistry.forIntent(intent))
-                .toolContext(Map.of("knowledgeBaseId", ragChatDto.knowledgeBaseId()))
+                .toolContext(Map.of("knowledgeBaseId", ragChatDto.knowledgeBaseId(),
+                        ToolContextKey.USER_ID, userId))
                 .stream()
                 .chatResponse()
                 .<ServerSentEvent<RagStreamEvent>>handle((response, sink) -> {

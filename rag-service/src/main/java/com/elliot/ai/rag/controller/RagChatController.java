@@ -11,6 +11,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.MediaType;
 import org.springframework.http.codec.ServerSentEvent;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -34,6 +35,7 @@ public class RagChatController {
      * @param ragChatDto 知识库 ID、问题和可选的检索参数
      * @return 回答内容、引用来源及模型 Token 用量
      */
+    @PreAuthorize("hasAuthority('rag:chat:use')")
     @PostMapping("/chat")
     @Operation(summary = "知识库问答", description = "从指定知识库召回相关片段，并以其为上下文生成回答。")
     public Result<RagChatResultDto> ragChat(
@@ -53,6 +55,7 @@ public class RagChatController {
      * @param ragChatDto 知识库 ID、可选会话 ID、用户问题、检索参数及模型编码
      * @return 按处理进度持续输出的 RAG SSE 事件流
      */
+    @PreAuthorize("hasAuthority('rag:chat:use')")
     @PostMapping(value = "/chat/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     @Operation(summary = "流式知识库问答", description = "从指定知识库召回相关片段，并通过 SSE 实时返回回答。")
     public Flux<ServerSentEvent<RagStreamEvent>> ragStreamChat(

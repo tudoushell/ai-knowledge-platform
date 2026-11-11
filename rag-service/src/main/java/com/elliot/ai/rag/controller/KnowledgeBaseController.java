@@ -8,6 +8,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -39,6 +40,7 @@ public class KnowledgeBaseController {
      * @return 创建成功响应
      */
     @PostMapping
+    @PreAuthorize("hasAuthority('rag:knowledge-base:create')")
     @Operation(summary = "创建知识库", description = "根据名称和描述创建一个新的知识库。")
     public Result<Void> create(@Valid @RequestBody CreateKnowledgeBaseDto knowledgeBaseDto) {
         knowledgeBaseService.create(knowledgeBaseDto.name(), knowledgeBaseDto.description());
@@ -51,6 +53,7 @@ public class KnowledgeBaseController {
      * @return 知识库列表响应
      */
     @GetMapping
+    @PreAuthorize("hasAuthority('rag:knowledge-base:read')")
     @Operation(summary = "查询知识库列表", description = "查询所有知识库。")
     public Result<List<KnowledgeBaseDto>> list() {
         List<KnowledgeBaseDto> knowledgeBases = knowledgeBaseService.listKnowledgeBases()
@@ -67,6 +70,7 @@ public class KnowledgeBaseController {
      * @return 知识库详情响应
      */
     @GetMapping("/{id}")
+    @PreAuthorize("hasAuthority('rag:knowledge-base:read')")
     @Operation(summary = "查询知识库详情", description = "根据知识库 ID 查询知识库详情。")
     public Result<KnowledgeBaseDto> getById(@PathVariable("id") UUID id) {
         return Result.buildSuccess(

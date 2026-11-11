@@ -1,5 +1,6 @@
 package com.elliot.ai.rag.tool;
 
+import com.elliot.ai.rag.security.tool.ToolContextUserResolver;
 import com.elliot.ai.rag.router.ChatIntent;
 import com.elliot.ai.rag.service.KbDocumentService;
 import com.elliot.ai.rag.service.KnowledgeBaseService;
@@ -29,7 +30,8 @@ class KnowledgeBaseToolRegistryTest {
         KnowledgeBaseTools knowledgeBaseTools =
                 new KnowledgeBaseTools(
                         kbDocumentService,
-                        knowledgeBaseService
+                        knowledgeBaseService,
+                        new ToolContextUserResolver()
                 );
 
         registry = new KnowledgeBaseToolRegistry(

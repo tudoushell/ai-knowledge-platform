@@ -17,6 +17,7 @@ import io.swagger.v3.oas.annotations.enums.ParameterIn;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.MediaType;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -125,6 +126,7 @@ public class KbDocumentController {
      * @param file            待上传的 TXT、Markdown、PDF 或 DOCX 文件
      * @return 已创建的知识库文档信息
      */
+    @PreAuthorize("hasAuthority('rag:document:upload')")
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @Operation(summary = "上传知识库文档", description = "向指定知识库上传 TXT、Markdown、PDF 或 DOCX 文档。")
     public Result<KbDocumentDto> upload(
@@ -211,6 +213,7 @@ public class KbDocumentController {
      * @param documentId 待删除的文档 ID
      * @return 删除成功响应
      */
+    @PreAuthorize("hasAuthority('rag:document:delete')")
     @DeleteMapping("/{documentId}")
     @Operation(summary = "删除知识库文档", description = "删除文档记录及关联的 Chunk、向量和存储文件。")
     public Result<Void> delete(

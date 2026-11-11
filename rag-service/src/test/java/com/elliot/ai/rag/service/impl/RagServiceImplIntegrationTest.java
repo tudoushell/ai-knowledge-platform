@@ -84,6 +84,7 @@ class RagServiceImplIntegrationTest {
     @Configuration(proxyBeanMethods = false)
     @Import({RagServiceImpl.class, ChatClientRouter.class, ChatIntentRouter.class,
             KnowledgeBaseToolRegistry.class, KnowledgeBaseTools.class,
+            com.elliot.ai.rag.security.tool.ToolContextUserResolver.class,
             RagProperties.class, PromptTemplateConfig.class})
     static class TestConfig {
         @Bean(MODEL)
@@ -118,6 +119,7 @@ class RagServiceImplIntegrationTest {
 
     @BeforeEach
     void setUp() {
+        when(currentUserProvider.requireUserId()).thenReturn(UUID.randomUUID().toString());
         knowledgeBaseId = UUID.randomUUID();
         conversationId = UUID.randomUUID();
         when(chatModel.getOptions()).thenReturn(ToolCallingChatOptions.builder().build());

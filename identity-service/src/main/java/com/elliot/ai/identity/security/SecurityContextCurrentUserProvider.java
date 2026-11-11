@@ -19,13 +19,10 @@ public class SecurityContextCurrentUserProvider implements CurrentUserProvider {
                 (authentication instanceof AnonymousAuthenticationToken) || !(authentication.isAuthenticated())) {
             throw new BusinessException(ResultCode.UNAUTHORIZED);
         }
-
-        Object principal = authentication.getPrincipal();
-
-        if (!(principal instanceof IdentityUserDetails userDetails)
-                || userDetails.getUserId() == null) {
+        String userId = authentication.getName();
+        if (!StringUtils.hasText(userId)) {
             throw new BusinessException(ResultCode.UNAUTHORIZED);
         }
-        return userDetails.getUserId().toString();
+        return userId;
     }
 }
